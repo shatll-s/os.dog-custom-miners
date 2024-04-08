@@ -1,0 +1,62 @@
+#!/bin/bash
+
+algo="TONHash"
+miner="ChapaMiner"
+
+LOG_FILE="/dog/log/chapa-miner.log"
+GPU_STATS="/run/dog/gpuStats"
+gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+
+busid_json='[]'
+declare -a hr_data=( )
+
+# Инициализируем массив hr_data нулями
+for (( i=0; i < gpuCount; i++ )); do
+    hr_data+=(0)
+done
+
+readarray -t speed_lines < <(tail -n 170 "$LOG_FILE" | grep "instant speed" | tail -n "$gpuCount")
+
+for (( i=0; i < gpuCount; i++ )); do
+    busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
+    busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
+
+    if [[ -n "${speed_lines[$i]}" ]]; then
+        instant_speed=$(echo "${speed_lines[$i]}" | grep -oP 'instant speed: \K[0-9.]+(?= Mhash/s)')
+        # Обновляем hr_data только если instant_speed больше 0
+        if (( $(echo "$instant_speed > 0" | bc -l) )); then
+            hr_data[$i]=$instant_speed
+        fi
+    fi
+done
+
+# Трансформируем hr_data в JSON для jq
+hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+
+# Вычисляем общий хешрейт
+totalHr=0
+for hr in "${hr_data[@]}"; do
+    totalHr=$(echo "$totalHr + $hr" | bc)
+done
+
+lastLine=$(tail -n 1 "$LOG_FILE" | sed 's/\x1b\[[0-9;]*m//g')
+total_share=$(echo "$lastLine" | awk '{print $7}')
+
+data=$(
+    jq -n \
+        --arg algo "$algo" \
+        --arg miner "$miner" \
+        --argjson busid "$busid_json" \
+        --argjson hr "$hr_json" \
+        --argjson total_share "$total_share" \
+    '{
+        miner: $miner,
+        algo: $algo,
+        total_hr: "'"$totalHr"'",
+        busid: $busid,
+        hr: $hr,
+        total_share: $total_share
+    }'
+)
+
+echo "$data" | jq -c
