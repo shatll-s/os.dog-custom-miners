@@ -57,7 +57,7 @@ else
 fi
 
 # if we have modified send_multigpu.js, use it instead of the original one
-[[ -f send_multigpu.js ]] && cp send_multigpu.js $dir/send_multigpu.js
+[[ -f ../send_multigpu.js ]] && cp ../send_multigpu.js send_multigpu.js
 
 cd ..
 
