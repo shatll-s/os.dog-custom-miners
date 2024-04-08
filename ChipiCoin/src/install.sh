@@ -56,10 +56,10 @@ else
 	npm i
 fi
 
-# if we have modified send_multigpu.js, use it instead of the original one
-[[ -f ../send_multigpu.js ]] && cp ../send_multigpu.js send_multigpu.js
-
 cd ..
+
+# if we have modified send_multigpu.js, use it instead of the original one
+[[ -f send_multigpu.js ]] && cp send_multigpu.js $dir/send_multigpu.js
 
 [[ ! `cat /etc/mtab | grep "$dir/bocs tmpfs"` ]] && mount -t tmpfs tmpfs $dir/bocs -o size=20m
 
