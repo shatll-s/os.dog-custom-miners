@@ -31,6 +31,10 @@ LOG="/dog/log/mrdn-miner.log"
 
 conf="SEED=$WALLET"								#	wallet = seed
 [[ $PASS ]] && conf+="\nTONAPI_TOKEN=$PASS"		#	pass = tonapi token
+if [[ "$ADDITION" == *"--target-address"* ]]; then
+  target_address=`echo $ADDITION | sed -e 's/.*--target-address //; s/ .*//'`
+  [[ $target_address ]] && conf+="\nTARGET_ADDRESS=$target_address"
+fi
 echo -e "$conf" > $CONFIG_FILE					#	write seed and optionally api token to config file
 
 
@@ -54,7 +58,6 @@ args=$ADDITION
 [[ "$ADDITION" != *"--givers"* ]] && args+=" --givers 1000"
 [[ "$ADDITION" != *"--api"* ]] && args+=" --api tonhub"
 [[ "$ADDITION" != *"--gpu-count"* ]] && args+=" --gpu-count $(gpu-detect NVIDIA)"
-
 cd $MINER_DIR
 
 $LINE
