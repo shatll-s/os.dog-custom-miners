@@ -29,10 +29,17 @@ LOG="/dog/log/chapa-miner.log"
 #	remove this string or install something right here
 ./install.sh
 
+args=$ADDITION
+
 conf="SEED=$WALLET"								            #	wallet = seed
 [[ $PASS ]] && conf+="\nTONAPI_TOKEN=$PASS"		#	pass = tonapi token
-echo -e "$conf" > $CONFIG_FILE					      #	write seed and optionally api token to config file
+if [[ "$ADDITION" == *"--target-address"* ]]; then
+  target_address=`echo $ADDITION | sed -e 's/.*--target-address //; s/ .*//'`
+  [[ $target_address ]] && conf+="\nTARGET_ADDRESS=$target_address"
+  args=`echo "$args" | sed -e "s/--target-address $target_address//"`
+fi
 
+echo -e "$conf" > $CONFIG_FILE					      #	write seed and optionally api token to config file
 
 nvmVersion=$(nvm --version 2>/dev/null)
 if [[ ! $nvmVersion ]]; then
@@ -50,7 +57,6 @@ NODE_MAJOR=20
 nvm use $NODE_MAJOR
 
 #	default values for miner
-args=$ADDITION
 [[ "$ADDITION" != *"--givers"* ]] && args+=" --givers 1000"
 [[ "$ADDITION" != *"--api"* ]] && args+=" --api tonhub"
 [[ "$ADDITION" != *"--gpu-count"* ]] && args+=" --gpu-count $(gpu-detect NVIDIA)"
