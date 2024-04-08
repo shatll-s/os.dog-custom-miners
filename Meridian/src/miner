@@ -40,7 +40,6 @@ if [[ "$ADDITION" == *"--target-address"* ]]; then
 fi
 echo -e "$conf" > $CONFIG_FILE					#	write seed and optionally api token to config file
 
-
 nvmVersion=$(nvm --version 2>/dev/null)
 if [[ ! $nvmVersion ]]; then
 	echo -e "> Install nvm"
@@ -57,8 +56,7 @@ NODE_MAJOR=20
 nvm use $NODE_MAJOR
 
 #	default values for miner
-
-[[ "$ADDITION" != *"--givers"* ]] && args+=" --givers 1000"
+[[ "$ADDITION" != *"--givers"* ]] && args+=" --givers 100"
 [[ "$ADDITION" != *"--api"* ]] && args+=" --api tonhub"
 [[ "$ADDITION" != *"--gpu-count"* ]] && args+=" --gpu-count $(gpu-detect NVIDIA)"
 cd $MINER_DIR
