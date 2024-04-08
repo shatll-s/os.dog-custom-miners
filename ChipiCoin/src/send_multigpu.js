@@ -238,8 +238,8 @@ function main() {
                     //     console.log(`stdout: ${data}`);
                     // })
                      procid.stderr.on('data', (data) => {
-                      if (enableLogging) {
-                         console.log(`err: ${data}`);
+                      if (enableLogging && data.toString().includes('instant speed')) {
+                         console.log(`native miner: ${data}`);
                       }
                      });
                     handlers.push(procid);

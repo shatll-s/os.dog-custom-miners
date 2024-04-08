@@ -1,6 +1,6 @@
 **Available miners**
 
-**ChipiCoin** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/ChipiCoin/chipi-miner-0.5.tar.gz`
+**ChipiCoin** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/ChipiCoin/chipi-miner-0.7.tar.gz`
 
 **Meridian** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/Meridian/mrdn-miner-0.7.tar.gz`
 
