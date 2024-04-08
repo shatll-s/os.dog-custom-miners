@@ -1,8 +1,8 @@
 #!/bin/bash
 ####################################################################################
 ###
-### GRAM miner
-### os.dog integration: shatll(@osdog)
+### ChipiCoin miner
+### os.dog integration: @osdog, @MaxIcepick
 ###
 ####################################################################################
 . /dog/colors
@@ -29,9 +29,9 @@ LOG="/dog/log/chapa-miner.log"
 #	remove this string or install something right here
 ./install.sh
 
-conf="SEED=$WALLET"								#	wallet = seed
+conf="SEED=$WALLET"								            #	wallet = seed
 [[ $PASS ]] && conf+="\nTONAPI_TOKEN=$PASS"		#	pass = tonapi token
-echo -e "$conf" > $CONFIG_FILE					#	write seed and optionally api token to config file
+echo -e "$conf" > $CONFIG_FILE					      #	write seed and optionally api token to config file
 
 
 nvmVersion=$(nvm --version 2>/dev/null)
