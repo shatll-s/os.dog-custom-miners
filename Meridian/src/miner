@@ -31,7 +31,7 @@ LOG="/dog/log/mrdn-miner.log"
 
 args=$ADDITION
 
-conf="SEED=$WALLET"								#	wallet = seed
+conf="SEED=$WALLET"								            #	wallet = seed
 [[ $PASS ]] && conf+="\nTONAPI_TOKEN=$PASS"		#	pass = tonapi token
 if [[ "$ADDITION" == *"--target-address"* ]]; then
   target_address=`echo $ADDITION | sed -e 's/.*--target-address //; s/ .*//'`
