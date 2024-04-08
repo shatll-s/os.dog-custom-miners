@@ -270,10 +270,11 @@ function main() {
                     // })
 
                     procid.stderr.on('data', (data) => {
-                        if (enableLogging) {
-                            console.log(`err: ${data}`);
+                        if (enableLogging && data.toString().includes('instant speed')) {
+                            console.log(`native miner: ${data}`);
                         }
                     });
+
                     handlers.push(procid);
                     procid.on('exit', () => {
                         let mined = undefined;
