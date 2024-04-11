@@ -58,8 +58,18 @@ fi
 
 cd ..
 
-# if we have modified send_multigpu.js, use it instead of the original one
-[[ -f send_multigpu.js ]] && cp send_multigpu.js $dir/send_multigpu.js
+# if we have modified files, than change them
+filesToChange=("send_multigpu.js" "givers.js")
+for (( i = 0; i < ${#filesToChange[@]}; i++ )); do
+    fileToChange=${filesToChange[$i]}
+    if [[ ! -f $fileToChange ]]; then
+      echo -e "${RED}> File ${CYAN}$fileToChange${RED} is in in replacement list, but not found, ignore${WHITE}"
+      continue
+    fi
+
+    echo -e "${GREEN}> Replace ${CYAN}$fileToChange${WHITE}${WHITE}"
+    cp $fileToChange $dir/$
+done
 
 [[ ! `cat /etc/mtab | grep "$dir/bocs tmpfs"` ]] && mount -t tmpfs tmpfs $dir/bocs -o size=20m
 
