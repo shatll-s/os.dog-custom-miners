@@ -1,0 +1,86 @@
+#!/bin/bash
+####################################################################################
+###
+### QUBIC miner for ton.ninja
+### os.dog integration: shatll(@osdog)
+###
+####################################################################################
+
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+LOG="/dog/log/qubic.log"
+SETTINGS_FILE="appsettings.json"
+
+#	custom package body
+
+function NeedToInstall() {
+	local ver=`apt-cache policy $1 | grep Installed | sed 's/Installed://; s/\s*//'`
+	[[ $ver && $ver != '(none)' ]] && echo 0 || echo 1
+}
+
+if [[ $(NeedToInstall libc6) -eq 1 ]]; then
+	echo -e "> Install libc6"
+	src="deb http://cz.archive.ubuntu.com/ubuntu jammy main"
+	[[ ! `cat /etc/apt/sources.list | grep "$src"` ]] && echo "$src" >> /etc/apt/sources.list
+	apt update
+	apt install libc6 -yqq
+else
+	echo -e "${GREEN}> libc6 already installed${NOCOLOR}"
+fi
+
+if [[ $(NeedToInstall g++-11) -eq 1 ]]; then
+	echo -e "> Install libc6"
+	src="deb http://cz.archive.ubuntu.com/ubuntu jammy main"
+	[[ ! `cat /etc/apt/sources.list | grep "$src"` ]] && echo "$src" >> /etc/apt/sources.list
+	apt update
+	apt install g++-11 -yqq
+else
+	echo -e "${GREEN}> g++-11 already installed${NOCOLOR}"
+fi
+
+[[ $POOL ]] && pool=$POOL || pool="https://mine.qubic.li/"
+threads=`nproc`
+alias=`cat /etc/hostname`
+
+json=$(
+  jq -n \
+  --arg baseUrl "$pool" \
+  --argjson amountOfThreads $threads \
+  --arg alias "$alias" \
+  '{
+    "Settings": {
+      $baseUrl, $amountOfThreads, $alias,
+      "autoupdateEnabled": true,
+      "allowHwInfoCollect": true
+    }
+  }'
+)
+
+if [[ ${#WALLET} -ge 61 ]]; then
+  json=`jq ".Settings += {\"accessToken\": \"$WALLET\"}" <<< "$json"`
+else
+  json=`jq ".Settings += {\"payoutId\": \"$WALLET\"}" <<< "$json"`
+fi
+
+json=`jq ".Settings += {\"overwrites\": {\"CUDA\": \"12\"}}" <<< "$json"`
+
+echo "$json" > $SETTINGS_FILE
+
+$LINE
+echo -e "${GREEN}> Starting custom miner with next settings:${WHITE}"
+echo $json | jq '.'
+
+batch="./qli-Client $args"
+
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
