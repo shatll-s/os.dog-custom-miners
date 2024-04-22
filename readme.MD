@@ -4,7 +4,7 @@
 
 **Meridian** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/Meridian/mrdn-miner-1.0.tar.gz`
 
-**Qubic** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/Qubic/qubic-miner-1.9.4.tar.gz`
+**Qubic** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/Qubic/qubic-miner-1.9.5.tar.gz`
 
 Only the current versions are presented here. For previous versions, check the repository
 
