@@ -23,7 +23,7 @@ LOG="/dog/log/xelis.log"
 #	custom package body
 args=
 [[ $POOL ]] && args="$args --host $POOL"
-[[ $ADDRESS ]] && args="$args --wallet $ADDRESS"
+[[ $WALLET ]] && args="$args --wallet $WALLET"
 [[ "$ADDITION" != *"--display-hs-all"* ]] && args+=" --display-hs-all"
 
 args="$args $ADDITION"
