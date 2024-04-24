@@ -41,18 +41,24 @@ readarray -t speed_lines < <(tail -n 170 "$LOG_FILE" | grep "instant speed" | ta
 
 for (( i=0; i < gpuCount; i++ )); do
     busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
+    echo "busid $busid"
+
     busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
+    echo "busid_json ${busid_json[@]}"
 
     if [[ -n "${speed_lines[$i]}" ]]; then
+      echo "im in"
+      echo "#${speed_lines[$i]}#"
         instant_speed=$(echo "${speed_lines[$i]}" | grep -oP 'instant speed: \K[0-9.]+(?= Mhash/s)')
-
+      echo "instant_speed $instant_speed"
         # set hr_data only if instant_speed is greater than 0
         if (( $(echo "$instant_speed > 0" | bc -l) )); then
             hr_data[$i]=$instant_speed
         fi
     fi
+    echo loopa
 done
-
+echo "hr_data = ${hr_data[@]}"
 hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
 
 # calculate total_hr
