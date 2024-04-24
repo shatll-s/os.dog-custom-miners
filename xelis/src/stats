@@ -1,7 +1,7 @@
 #!/bin/bash
 ####################################################################################
 ###
-### QUBIC miner for ton.ninja
+### XELIS miner for ton.ninja
 ### os.dog integration: shatll(@osdog)
 ###
 ####################################################################################
@@ -32,14 +32,12 @@
 baseDir=`dirname $0`
 
 
-LOG="/dog/log/qubic.log"
+LOG="/dog/log/xelis.log"
 
-algo="qubic"
-miner="qli-Client"
+algo="xelishash"
+miner="xelis-taxminer"
 
-ver=`$baseDir/qli-Client --version | sed 's/Client Version //'`
-[[ ! $ver ]] && ver='unknown'
-
+ver='0.4'
 data=$(
 		jq -n \
     --arg algo "$algo" \
@@ -49,30 +47,28 @@ data=$(
 			$algo
 		}'
 )
-minername="qli-runner"
+minername="xelis-taxminer"
 online_raw=`ps -C $minername -o etimes= | awk '{print $1}' | tac | tail -n 1`
 if [[ ! -z $online_raw ]]; then
   online=$(date --date "-$online_raw sec" +%s) #absolute time
   data=`jq ". += {\"online\": $online}" <<< "$data"`
 fi
 
-allGpuHrStr=`tail -n 20 $LOG | grep Trainer: | grep -Ev "Solution|argument|devices" | tail -n 1 | sed "s/.*Trainer: //"`
+linesToSearch=100
+logPart=`tail -n $linesToSearch $LOG`
+
+platform0_busids=`cat /run/dog/gpuStats | jq '[[.gpu[] | select(.brand == "N")] | .[].b]'`
+#platform1_busids=`cat /run/dog/gpuStats | jq '[[.gpu[] | select(.brand == "A")] | .[].b]'` # amd is not working atm
+gpuCount=`echo $platform0_busids | jq '. | length'`
 
 busid_json=[]
 hr_json=[]
-gpuList=`cat /run/dog/gpuStats | jq '[.gpu[] | select(.brand != "I")]'`
-gpuCount=`gpu-detect all`
 totalHr=0
-for (( i=0; i < $gpuCount; i++ )); do
-  awkArgs="{print \$$i}"
-  gpuHrStr=`echo $allGpuHrStr | awk -F "|" "$awkArgs"`
-  gpuId=`echo $gpuHrStr | sed 's/.*GPU #\([0-9]*\).*/\1/'`
-
-  busid=`echo $gpuList | jq -r ".[$i].b"`
+for (( i=0; i < ${gpuCount}; i++ )); do
+  gpuHrStr=`echo "$logPart" | grep "GPU #${i}" | tail -n 1`
+  hr=`echo $gpuHrStr | sed -e 's/.*hashrate = //; s/ H\/s//'`
+  busid=`echo $platform0_busids | jq -r ".[$i]"`
   busid_json=`jq ". += [\"$busid\"]" <<< "$busid_json"`
-
-
-  hr=`echo $gpuHrStr | sed -e 's/GPU #.*: //; s# it\/s##'`
   hr_json=`jq ". += [$hr]" <<< "$hr_json"`
   totalHr=`echo "$totalHr + $hr" | bc`
 done
@@ -85,16 +81,6 @@ if [[ ! -z $hr_json ]]; then
   data=`jq ". += {\"hr\": $hr_json}" <<< "$data"`
   data=`jq ". += {\"total_hr\": $totalHr}" <<< "$data"`
 fi
-
-allStatstr=`tail -n 20 $LOG | grep SOL: | tail -n 1`
-totalSolutions=`echo $allStatstr | sed -e 's/.*SOL: //; s#/.*##'`
-if [[ ! -z $totalSolutions ]]; then
-  data=`jq ". += {\"total_share\": $totalSolutions}" <<< "$data"`
-fi
-
-epoch=`echo $allStatstr | sed -e 's/.*E://; s# .*##'`
-[[ $epoch ]] && ver="$ver|E${epoch}"
-data=`jq ". += {\"ver\": \"$ver\"}" <<< "$data"`
 
 #   finally return json data
 echo "$data" | jq -c
