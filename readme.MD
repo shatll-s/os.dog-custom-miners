@@ -6,6 +6,8 @@
 
 **Qubic** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic/qubic-miner-1.9.5.tar.gz`
 
+**Xelis** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/xelis/xelis-miner-0.4b.gz`
+
 Only the current versions are presented here. For previous versions, check the repository
 
 

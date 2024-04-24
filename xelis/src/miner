@@ -24,6 +24,9 @@ LOG="/dog/log/xelis.log"
 args=
 [[ $POOL ]] && args="$args --host $POOL"
 [[ $ADDRESS ]] && args="$args --wallet $ADDRESS"
+[[ "$ADDITION" != *"--display-hs-all"* ]] && args+=" --display-hs-all"
+
+args="$args $ADDITION"
 
 batch="./xelis-taxminer $args"
 $LINE
