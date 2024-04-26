@@ -37,7 +37,7 @@ LOG="/dog/log/xelis.log"
 algo="xelishash"
 miner="xelis-taxminer"
 
-ver='0.4'
+ver='0.7.1'
 data=$(
 		jq -n \
     --arg algo "$algo" \
