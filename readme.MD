@@ -1,10 +1,12 @@
 **Available miners**
 
+**Qubic** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic/qubic-miner-1.9.6.tar.gz`
+
+**Qubic CPU** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic-cpu/qubic-cpu-miner-1.9.6.tar.gz`
+
 **ChipiCoin** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/chapa/chipi-miner-1.4.tar.gz`
 
 **Meridian** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/mrdn/mrdn-miner-1.0.tar.gz`
-
-**Qubic** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic/qubic-miner-1.9.6.tar.gz`
 
 **Xelis** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/xelis/xelis-miner-0.7.1.tar.gz`
 
