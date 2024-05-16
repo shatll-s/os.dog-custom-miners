@@ -1,0 +1,39 @@
+#!/bin/bash
+####################################################################################
+###
+### UPOWAI miner
+### os.dog integration: shatll(@osdog)
+###
+####################################################################################
+
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+LOG="/dog/log/upowai.log"
+
+#	custom package body
+
+
+
+args=
+[[ $WALLET ]] && args="$args --address $WALLET"
+[[ "$ADDITION" != *"--device"* ]] && args+=" --device $(gpu-detect NVIDIA)"
+
+args="$args $ADDITION"
+
+batch="./cuda $args"
+$LINE
+echo -e "${GREEN}> Starting UPOWAI custom miner with next settings:${WHITE}"
+echo -e "$batch"
+
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
