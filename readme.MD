@@ -10,7 +10,7 @@
 
 **Xelis** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/xelis/xelis-miner-0.7.1.tar.gz`
 
-**Upowai** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/upowai/upowai-miner-0.2.tar.gz`
+**Upowai** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/upowai/upowai-miner-0.3.tar.gz`
 
 Only the current versions are presented here. For previous versions, check the repository
 

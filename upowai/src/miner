@@ -18,6 +18,8 @@ CFG_FILENAME="miner.cfg"
 
 #	custom package variables
 ####################################################################################
+./install.sh
+
 LOG="/dog/log/upowai.log"
 
 #	custom package body
