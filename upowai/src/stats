@@ -1,7 +1,7 @@
 #!/bin/bash
 ####################################################################################
 ###
-### XELIS miner for ton.ninja
+### UPOWAI miner for ton.ninja
 ### os.dog integration: shatll(@osdog)
 ###
 ####################################################################################
@@ -32,12 +32,12 @@
 baseDir=`dirname $0`
 
 
-LOG="/dog/log/xelis.log"
+LOG="/dog/log/upowai.log"
 
-algo="xelishash"
-miner="xelis-taxminer"
+algo="sha256"
+miner="upow-gpu"
 
-ver='0.7.1'
+ver='0.1'
 data=$(
 		jq -n \
     --arg algo "$algo" \
@@ -47,26 +47,28 @@ data=$(
 			$algo
 		}'
 )
-minername="xelis-taxminer"
+minername="cuda"
 online_raw=`ps -C $minername -o etimes= | awk '{print $1}' | tac | tail -n 1`
 if [[ ! -z $online_raw ]]; then
   online=$(date --date "-$online_raw sec" +%s) #absolute time
   data=`jq ". += {\"online\": $online}" <<< "$data"`
 fi
 
-linesToSearch=100
-logPart=`tail -n $linesToSearch $LOG`
 
 platform0_busids=`cat /run/dog/gpuStats | jq '[[.gpu[] | select(.brand == "N")] | .[].b]'`
 #platform1_busids=`cat /run/dog/gpuStats | jq '[[.gpu[] | select(.brand == "A")] | .[].b]'` # amd is not working atm
 gpuCount=`echo $platform0_busids | jq '. | length'`
 
+linesToSearch=`echo "$gpuCount * 2" | bc`
+logPart=`tail -n $linesToSearch $LOG`
+
 busid_json=[]
 hr_json=[]
 totalHr=0
 for (( i=0; i < ${gpuCount}; i++ )); do
-  gpuHrStr=`echo "$logPart" | grep "GPU #${i}" | tail -n 1`
-  hr=`echo $gpuHrStr | sed -e 's/.*hashrate = //; s/ H\/s//'`
+  gpuHrStr=`echo "$logPart" | grep "^${i}. " | tail -n 1`
+  hrRaw=`echo $gpuHrStr | sed -e 's/.*: //; s/ GH\/s//'`
+  hr=`echo "$hrRaw * 1000000000" | bc -l`
   busid=`echo $platform0_busids | jq -r ".[$i]"`
   busid_json=`jq ". += [\"$busid\"]" <<< "$busid_json"`
   hr_json=`jq ". += [$hr]" <<< "$hr_json"`

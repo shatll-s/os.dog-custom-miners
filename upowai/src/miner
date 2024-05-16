@@ -36,4 +36,4 @@ echo -e "${GREEN}> Starting UPOWAI custom miner with next settings:${WHITE}"
 echo -e "$batch"
 
 #	unbuffer is needed to keep colors with tee
-unbuffer $batch 2>&1 | tee --append $LOG
+unbuffer $batch 2>&1 | tee $LOG
