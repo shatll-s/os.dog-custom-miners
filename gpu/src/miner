@@ -1,0 +1,71 @@
+#!/bin/bash
+####################################################################################
+###
+### chapa miner
+### os.dog integration: @osdog, @MaxIcepick
+###
+####################################################################################
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+MINER_DIR=files
+CONFIG_FILE=$MINER_DIR/config.txt
+LOG="/dog/log/chapa-miner.log"
+
+#	custom package body
+####################################################################################
+
+#	this miner need many dependencies, so install script is placed in individual file
+#	if the miner is builded or you don`t need to install ton of dependecies, you can
+#	remove this string or install something right here
+./install.sh
+
+args=$ADDITION
+
+conf="SEED=$WALLET"								            #	wallet = seed
+[[ $PASS ]] && conf+="\nTONAPI_TOKEN=$PASS"		#	pass = tonapi token
+if [[ "$ADDITION" == *"--target-address"* ]]; then
+  target_address=`echo $ADDITION | sed -e 's/.*--target-address //; s/ .*//'`
+  [[ $target_address ]] && conf+="\nTARGET_ADDRESS=$target_address"
+  args=`echo "$args" | sed -e "s/--target-address $target_address//"`
+fi
+
+echo -e "$conf" > $CONFIG_FILE					      #	write seed and optionally api token to config file
+
+nvmVersion=$(nvm --version 2>/dev/null)
+if [[ ! $nvmVersion ]]; then
+	echo -e "> Install nvm"
+	curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+
+	export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+	[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+	source ~/.bashrc
+else
+	echo "${GREEN}> nodejs already installed${NOCOLOR}"
+fi
+NODE_MAJOR=20
+nvm use $NODE_MAJOR
+
+#	default values for miner
+[[ "$ADDITION" != *"--givers"* ]] && args+=" --givers 1000"
+[[ "$ADDITION" != *"--api"* ]] && args+=" --api tonhub"
+[[ "$ADDITION" != *"--gpu-count"* ]] && args+=" --gpu-count $(gpu-detect NVIDIA)"
+
+cd $MINER_DIR
+
+$LINE
+echo -e "${GREEN}> Starting custom miner${WHITE}"
+batch="node send_multigpu.js --bin ./pow-miner-cuda $args"
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
+
