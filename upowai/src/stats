@@ -59,7 +59,7 @@ platform0_busids=`cat /run/dog/gpuStats | jq '[[.gpu[] | select(.brand == "N")] 
 #platform1_busids=`cat /run/dog/gpuStats | jq '[[.gpu[] | select(.brand == "A")] | .[].b]'` # amd is not working atm
 gpuCount=`echo $platform0_busids | jq '. | length'`
 
-linesToSearch=`echo "$gpuCount * 2" | bc`
+linesToSearch=`echo "$gpuCount * 4" | bc`
 logPart=`tail -n $linesToSearch $LOG`
 
 busid_json=[]
