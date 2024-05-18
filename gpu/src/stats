@@ -23,9 +23,9 @@
 #	}
 
 algo="TONHash"
-miner="ChapaMiner"
+miner="GpuMiner"
 
-LOG_FILE="/dog/log/chapa-miner.log"
+LOG_FILE="/dog/log/gpu-miner.log"
 GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 
