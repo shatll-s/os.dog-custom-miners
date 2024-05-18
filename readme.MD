@@ -12,7 +12,7 @@
 
 **Upowai** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/upowai/upowai-miner-0.7.tar.gz`
 
-**Gpu** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/gpu/gpu-miner-0.2.tar.gz`
+**Gpu** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/gpu/gpu-miner-0.3.tar.gz`
 Only the current versions are presented here. For previous versions, check the repository
 
 
