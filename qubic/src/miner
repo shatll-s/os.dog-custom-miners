@@ -53,10 +53,11 @@ threads=`nproc`
 alias=`cat /etc/hostname`
 
 trainer=$(
-  jq - n '{
+  jq -n \
+  '{
   	"cpu": false,
   	"gpu": true,
-  	"gpuVersion": "CUDA12",
+  	"gpuVersion": "CUDA12"
   }'
 )
 
@@ -64,11 +65,11 @@ json=$(
   jq -n \
   --arg baseUrl "$pool" \
   --argjson amountOfThreads $threads \
-  --argjson trainer $trainer \
+  --argjson trainer "$trainer" \
   --arg alias "$alias" \
   '{
     "Settings": {
-      $baseUrl, $amountOfThreads, $alias, $trainer
+      $baseUrl, $amountOfThreads, $alias, $trainer,
       "autoupdateEnabled": true,
       "allowHwInfoCollect": true,
     }
