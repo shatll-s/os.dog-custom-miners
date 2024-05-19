@@ -67,7 +67,8 @@ hr_json=[]
 totalHr=0
 for (( i=0; i < ${gpuCount}; i++ )); do
   gpuHrStr=`echo "$logPart" | grep "^${i}. " | tail -n 1`
-  hrRaw=`echo $gpuHrStr | sed -e 's/.*: //; s/ GH\/s//'`
+  #echo "@$gpuHrStr@"
+  hrRaw=`echo $gpuHrStr | sed -e 's/.*: //; s/ GH\/s.*//'`
   hr=`echo "$hrRaw * 1000000000" | bc -l`
   busid=`echo $platform0_busids | jq -r ".[$i]"`
   busid_json=`jq ". += [\"$busid\"]" <<< "$busid_json"`
