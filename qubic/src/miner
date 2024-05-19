@@ -52,16 +52,25 @@ fi
 threads=`nproc`
 alias=`cat /etc/hostname`
 
+trainer=$(
+  jq - n '{
+  	"cpu": false,
+  	"gpu": true,
+  	"gpuVersion": "CUDA12",
+  }'
+)
+
 json=$(
   jq -n \
   --arg baseUrl "$pool" \
   --argjson amountOfThreads $threads \
+  --argjson trainer $trainer \
   --arg alias "$alias" \
   '{
     "Settings": {
-      $baseUrl, $amountOfThreads, $alias,
+      $baseUrl, $amountOfThreads, $alias, $trainer
       "autoupdateEnabled": true,
-      "allowHwInfoCollect": true
+      "allowHwInfoCollect": true,
     }
   }'
 )
@@ -72,7 +81,7 @@ else
   json=`jq ".Settings += {\"payoutId\": \"$WALLET\"}" <<< "$json"`
 fi
 
-json=`jq ".Settings += {\"overwrites\": {\"CUDA\": \"12\"}}" <<< "$json"`
+#json=`jq ".Settings += {\"overwrites\": {\"CUDA\": \"12\"}}" <<< "$json"`
 
 echo "$json" > $SETTINGS_FILE
 
