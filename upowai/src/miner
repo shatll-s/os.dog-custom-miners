@@ -24,8 +24,6 @@ LOG="/dog/log/upowai.log"
 
 #	custom package body
 
-
-
 args=
 [[ $WALLET ]] && args="$args --address $WALLET"
 [[ "$ADDITION" != *"--device"* ]] && args+=" --device $(gpu-detect NVIDIA)"
