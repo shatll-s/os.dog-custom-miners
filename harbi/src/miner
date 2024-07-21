@@ -1,7 +1,7 @@
 #!/bin/bash
 ####################################################################################
 ###
-### XELIS miner
+### Harbi miner
 ### os.dog integration: shatll(@osdog)
 ###
 ####################################################################################
@@ -18,19 +18,19 @@ CFG_FILENAME="miner.cfg"
 
 #	custom package variables
 ####################################################################################
-LOG="/dog/log/xelis.log"
+LOG="/dog/log/harbi.log"
 
 #	custom package body
 args=
-[[ $POOL ]] && args="$args --host $POOL"
-[[ $WALLET ]] && args="$args --wallet $WALLET"
-[[ "$ADDITION" != *"--display-hs-all"* ]] && args+=" --display-hs-all"
+#[[ $POOL ]] && args="$args --host $POOL"
+[[ $WALLET ]] && args="$args -a $WALLET"
+#[[ "$ADDITION" != *"--display-hs-all"* ]] && args+=" --display-hs-all"
 
 args="$args $ADDITION"
 
-batch="./xelis-taxminer $args"
+batch="./pHarbi-miner $args"
 $LINE
-echo -e "${GREEN}> Starting XELIS custom miner with next settings:${WHITE}"
+echo -e "${GREEN}> Starting HARBI custom miner with next settings:${WHITE}"
 echo -e "$batch"
 
 #	unbuffer is needed to keep colors with tee

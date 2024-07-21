@@ -1,7 +1,7 @@
 #!/bin/bash
 ####################################################################################
 ###
-### XELIS miner for ton.ninja
+### Harbi miner for ton.ninja
 ### os.dog integration: shatll(@osdog)
 ###
 ####################################################################################
@@ -32,10 +32,10 @@
 baseDir=`dirname $0`
 
 
-LOG="/dog/log/xelis.log"
+LOG="/dog/log/harbi.log"
 
-algo="xelishash"
-miner="xelis-taxminer"
+algo="harbihash"
+miner="pHarbi-miner"
 
 ver='0.7.1'
 data=$(
@@ -47,7 +47,7 @@ data=$(
 			$algo
 		}'
 )
-minername="xelis-taxminer"
+minername="pHarbi-miner"
 online_raw=`ps -C $minername -o etimes= | awk '{print $1}' | tac | tail -n 1`
 if [[ ! -z $online_raw ]]; then
   online=$(date --date "-$online_raw sec" +%s) #absolute time
@@ -84,3 +84,43 @@ fi
 
 #   finally return json data
 echo "$data" | jq -c
+#
+#local stats_raw=`cat $LOG | grep -a "hashrate" | tail -n 1 | tr -d '\0'`
+#				local maxDelay=120
+#				local time_now=`date +%s`
+#				local datetime_rep=`echo $stats_raw | awk '{print $1}' | awk -F[ '{print $2}'`
+#				local time_rep=`date -d $datetime_rep +%s`
+#
+#				diffTime=`echo $((time_now-time_rep)) | tr -d '-'`
+#
+#				if [[ "$diffTime" -lt "$maxDelay" ]]; then
+#					local miner_online_raw=`ps -C $miner -o etimes= | awk '{print $1}'`
+#					[[ ! -z $miner_online_raw ]] && local miner_online=$(date --date "-$miner_online_raw sec" +%s) #absolute time
+#
+#					local multiplier
+#					[[ $stats_raw == *"Ghash"* ]] && multiplier=1000000000 || multiplier=1000000
+#					local miner_total_hr_raw=`echo "$stats_raw" | awk '{print $7}'`
+#					local miner_total_hr=`echo "scale=0; $miner_total_hr_raw * $multiplier / 1" | bc -l`
+#
+#					local shares_raw=`cat $LOG | grep -a "Shares: Accepted:" | tail -n 1 | tr -d '\0'`
+#					local miner_total_share=`echo "$shares_raw" | awk '{print $6}'`
+#
+#					local gpuList=`cat $GPUSTATS_FILE | jq '.gpu'`
+#					local gpuCount=`echo $gpuList | jq -r '. | length'`
+#
+#					local miner_busid_json=`echo $gpuList | jq '[.[].b]'`
+#
+#					local hash_arr=()
+#
+#					for(( i=0; i < gpuCount; i++ )); do
+#						local gpu_raw=`cat $LOG | grep -a "Device #"$i | tail -n 1 `
+#						local hr_raw=`echo $gpu_raw | awk '{print $(NF-1)}'`
+#						[[ $gpu_raw == *"Ghash"* ]] && multiplier=1000000000 || multiplier=1000000
+#						local hr=`echo "scale=0; $hr_raw * $multiplier / 1" | bc -l`
+#
+#						hash_arr+=($hr)
+#
+#					done
+#
+#					local miner_hr_json=`printf '%s\n' "${hash_arr[@]}" | jq -cs '.'`
+#				fi
