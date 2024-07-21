@@ -10,9 +10,11 @@
 
 **Xelis** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/xelis/xelis-miner-0.7.1.tar.gz`
 
-**Upowai** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/upowai/upowai-miner-0.7.tar.gz`
+**Upowai** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/upowai/upowai-miner-3c.tar.gz`
 
-**Gpu** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/gpu/gpu-miner-0.3.tar.gz`
+**GPU** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/gpu/gpu-miner-0.3.tar.gz`
+
+**CPU** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/cpu/cpu-miner-0.1.tar.gz`
 Only the current versions are presented here. For previous versions, check the repository
 
 
