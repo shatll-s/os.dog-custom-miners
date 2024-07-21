@@ -1,0 +1,37 @@
+#!/bin/bash
+####################################################################################
+###
+### XELIS miner
+### os.dog integration: shatll(@osdog)
+###
+####################################################################################
+
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+LOG="/dog/log/xelis.log"
+
+#	custom package body
+args=
+[[ $POOL ]] && args="$args --host $POOL"
+[[ $WALLET ]] && args="$args --wallet $WALLET"
+[[ "$ADDITION" != *"--display-hs-all"* ]] && args+=" --display-hs-all"
+
+args="$args $ADDITION"
+
+batch="./xelis-taxminer $args"
+$LINE
+echo -e "${GREEN}> Starting XELIS custom miner with next settings:${WHITE}"
+echo -e "$batch"
+
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
