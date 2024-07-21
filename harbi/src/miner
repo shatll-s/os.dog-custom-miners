@@ -21,6 +21,12 @@ CFG_FILENAME="miner.cfg"
 LOG="/dog/log/harbi.log"
 
 #	custom package body
+
+#	this miner need many dependencies, so install script is placed in individual file
+#	if the miner is builded or you don`t need to install ton of dependecies, you can
+#	remove this string or install something right here
+./install.sh
+
 args=
 #[[ $POOL ]] && args="$args --host $POOL"
 [[ $WALLET ]] && args="$args -a $WALLET"
