@@ -1,0 +1,84 @@
+#!/bin/bash
+####################################################################################
+###
+### QUBIC miner for apool
+### os.dog integration: shatll(@osdog)
+###
+####################################################################################
+
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+LOG="/dog/log/apoolminer.log"
+EXECFILE="apoolminer"
+#	custom package body
+
+#function NeedToInstall() {
+#	local ver=`apt-cache policy $1 | grep Installed | sed 's/Installed://; s/\s*//'`
+#	[[ $ver && $ver != '(none)' ]] && echo 0 || echo 1
+#}
+#
+#if [[ $(NeedToInstall libc6) -eq 1 ]]; then
+#	echo -e "> Install libc6"
+#	src="deb http://cz.archive.ubuntu.com/ubuntu jammy main"
+#	[[ ! `cat /etc/apt/sources.list | grep "$src"` ]] && echo "$src" >> /etc/apt/sources.list
+#	apt update
+#	apt install libc6 -yqq
+#else
+#	echo -e "${GREEN}> libc6 already installed${NOCOLOR}"
+#fi
+#
+#if [[ $(NeedToInstall g++-11) -eq 1 ]]; then
+#	echo -e "> Install libc6"
+#	src="deb http://cz.archive.ubuntu.com/ubuntu jammy main"
+#	[[ ! `cat /etc/apt/sources.list | grep "$src"` ]] && echo "$src" >> /etc/apt/sources.list
+#	apt update
+#	apt install g++-11 -yqq
+#else
+#	echo -e "${GREEN}> g++-11 already installed${NOCOLOR}"
+#fi
+
+
+####################################################################################
+
+[[ $POOL ]] && pool=$POOL || pool="https://mine.qubic.li/"
+threads=`nproc`
+alias=`cat /etc/hostname`
+args=$ADDITION
+
+# get substring from template after dot
+alias=`echo $TEMPLATE | sed 's/.*\.//'` # if there is no dot in template, alias will be ident to template, so use hostname
+[[ $TEMPLATE == $alias ]] && alias=`cat /etc/hostname`
+
+port=$(echo $POOL | awk -F ':' '{print $NF}')
+if [ "$port" = "9091" ]; then
+    MODEL="--solo"
+else
+    MODEL="--pool"
+fi
+
+#	default values for miner
+currency="qubic"
+[[ "$ADDITION" != *"--account"* ]] && args+=" --account $WALLET $MODEL"
+args+=" -rest --port $API_PORT"
+args+=" -A $currency"
+
+$LINE
+echo -e "${GREEN}> Starting custom miner with next settings:${WHITE}"
+
+batch="./$EXECFILE $args"
+
+#--account $ADDRESS ${MODEL} $PROXY --rest --port ${MINER_REST_PORT} -A ${CURRENCY} $EXTRA 2>&1 | tee --append ${CUSTOM_LOG_BASENAME}.log
+#--account $ADDRESS ${MODEL} $PROXY --rest --port ${MINER_REST_PORT} -A ${CURRENCY} $EXTRA 2>&1
+
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
