@@ -68,13 +68,16 @@ fi
 
 #	default values for miner
 currency="qubic"
-[[ "$ADDITION" != *"--account"* ]] && args+=" --account $WALLET $MODEL"
+[[ "$ADDITION" != *"--account"* ]] && args+=" --account $WALLET"
+[[ "$ADDITION" != *"--pool"* ]] && args+=" --pool $MODEL $POOL"
+
+ $MODEL
 args+=" --rest --port $API_PORT"
-args+=" -A $currency"
+args+=" --algo $currency"
 
 $LINE
 echo -e "${GREEN}> Starting custom miner with next settings:${WHITE}"
-
+echo -e "$batch"
 batch="./$EXECFILE $args"
 
 #--account $ADDRESS ${MODEL} $PROXY --rest --port ${MINER_REST_PORT} -A ${CURRENCY} $EXTRA 2>&1 | tee --append ${CUSTOM_LOG_BASENAME}.log
