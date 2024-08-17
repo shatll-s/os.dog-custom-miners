@@ -49,15 +49,14 @@ EXECFILE="apoolminer"
 
 
 ####################################################################################
-
-[[ $POOL ]] && pool=$POOL || pool="https://mine.qubic.li/"
+[[ $POOL ]] && pool=$POOL || pool="qubic1.hk.apool.io:3334"
 threads=`nproc`
 alias=`cat /etc/hostname`
 args=$ADDITION
 
 # get substring from template after dot
-alias=`echo $TEMPLATE | sed 's/.*\.//'` # if there is no dot in template, alias will be ident to template, so use hostname
-[[ $TEMPLATE == $alias ]] && alias=`cat /etc/hostname`
+worker=`echo $TEMPLATE | sed 's/.*\.//'` # if there is no dot in template, alias will be ident to template, so use hostname
+[[ $TEMPLATE == $worker ]] && worker=`cat /etc/hostname`
 
 port=$(echo $POOL | awk -F ':' '{print $NF}')
 if [ "$port" = "9091" ]; then
@@ -69,15 +68,17 @@ fi
 #	default values for miner
 currency="qubic"
 [[ "$ADDITION" != *"--account"* ]] && args+=" --account $WALLET"
-[[ "$ADDITION" != *"--pool"* ]] && args+=" --pool $MODEL $POOL"
+[[ "$ADDITION" != *"--pool"* ]] && args+=" $MODEL $pool"
 
+args+=" --worker $worker"
 args+=" --rest --port $API_PORT"
 args+=" --algo $currency"
 
 $LINE
+batch="./$EXECFILE $args"
+
 echo -e "${GREEN}> Starting custom miner with next settings:${WHITE}"
 echo -e "$batch"
-batch="./$EXECFILE $args"
 
 #--account $ADDRESS ${MODEL} $PROXY --rest --port ${MINER_REST_PORT} -A ${CURRENCY} $EXTRA 2>&1 | tee --append ${CUSTOM_LOG_BASENAME}.log
 #--account $ADDRESS ${MODEL} $PROXY --rest --port ${MINER_REST_PORT} -A ${CURRENCY} $EXTRA 2>&1
