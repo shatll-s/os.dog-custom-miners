@@ -69,7 +69,7 @@ fi
 #	default values for miner
 currency="qubic"
 [[ "$ADDITION" != *"--account"* ]] && args+=" --account $WALLET $MODEL"
-args+=" -rest --port $API_PORT"
+args+=" --rest --port $API_PORT"
 args+=" -A $currency"
 
 $LINE
