@@ -71,7 +71,6 @@ currency="qubic"
 [[ "$ADDITION" != *"--account"* ]] && args+=" --account $WALLET"
 [[ "$ADDITION" != *"--pool"* ]] && args+=" --pool $MODEL $POOL"
 
- $MODEL
 args+=" --rest --port $API_PORT"
 args+=" --algo $currency"
 
