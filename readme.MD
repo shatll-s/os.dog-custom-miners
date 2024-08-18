@@ -2,6 +2,8 @@
 
 **Qubic** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic/qubic-miner-1.9.7.tar.gz`
 
+**Qubic apool** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic-apool/qubic-apoolminer-1.8.0.tar.gz`
+
 **Qubic CPU** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic-cpu/qubic-cpu-miner-1.9.7.tar.gz`
 
 **ChipiCoin** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/chapa/chipi-miner-1.4.tar.gz`
