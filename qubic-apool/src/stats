@@ -2,7 +2,7 @@
 ####################################################################################
 ###
 ### QUBIC miner for ton.ninja
-### os.dog integration: shatll(@osdog)
+### os.dog integration: shatll(@osdog), with inclusions of @zakez code
 ###
 ####################################################################################
 
@@ -30,71 +30,121 @@
 
 
 baseDir=`dirname $0`
+miner="apoolminer"
 
+cd $baseDir
 
-LOG="/dog/log/qubic.log"
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+LOG="/dog/log/apoolminer.log"
 
 algo="qubic"
-miner="qli-Client"
-
-ver=`$baseDir/qli-Client --version | sed 's/Client Version //'`
+ver=`$baseDir/$miner --version | sed 's/ApoolMiner //'`
 [[ ! $ver ]] && ver='unknown'
 
-data=$(
-		jq -n \
-    --arg algo "$algo" \
-    --arg miner "$miner" \
-		'{
-			$miner,
-			$algo
-		}'
-)
-minername="qli-runner"
-online_raw=`ps -C $minername -o etimes= | awk '{print $1}' | tac | tail -n 1`
-if [[ ! -z $online_raw ]]; then
-  online=$(date --date "-$online_raw sec" +%s) #absolute time
-  data=`jq ". += {\"online\": $online}" <<< "$data"`
+gpus_raw=`curl -s --connect-timeout 3 --max-time 5 http://127.0.0.1:$API_PORT/gpu`
+
+if [[ $? -ne 0 || -z $gpus_raw ]]; then
+  exit 1
 fi
 
-allGpuHrStr=`tail -n 20 $LOG | grep Trainer: | grep -Ev "Solution|argument|devices" | tail -n 1 | sed "s/.*Trainer: //"`
+# shellcheck disable=SC2120
+function get_cpu_temp() {
+	# shellcheck disable=SC2045
+	for HWMON in $(ls /sys/class/hwmon); do
+		[[ -f /sys/class/hwmon/${HWMON}/name ]] &&
+			local test=$(cat /sys/class/hwmon/${HWMON}/name | grep -c -E 'coretemp|k10temp|k8temp')
+		if [[ $test -gt 0 ]]; then
+			HWMON_DIR=/sys/class/hwmon/$HWMON
+			break
+		fi
+	done
+	local inputs=()
+	local temp=
+	[[ ! -z $HWMON_DIR ]] && readarray -t inputs < <(ls $HWMON_DIR/temp*_input | sort -V)
+	[[ ${#inputs[@]} -eq 0 ]] && echo "null" && return 1
+	local input=
+	[[ -z "$1" ]] && input=0
+	[[ "$1" =~ ^[0-9]+$ ]] && input=$1
+	[[ ! -z $input && ! -z ${inputs[input]} ]] && temp=`awk '{ printf("%.0f\n", $1/1000)}' ${inputs[input]} 2>/dev/null`
+	echo "${temp:-null}"
+}
 
-busid_json=[]
-hr_json=[]
-gpuList=`cat /run/dog/gpuStats | jq '[.gpu[] | select(.brand != "I")]'`
-gpuCount=`gpu-detect all`
-totalHr=0
-for (( i=0; i < $gpuCount; i++ )); do
-  awkArgs="{print \$$i}"
-  gpuHrStr=`echo $allGpuHrStr | awk -F "|" "$awkArgs"`
-  gpuId=`echo $gpuHrStr | sed 's/.*GPU #\([0-9]*\).*/\1/'`
+stats_template=`echo "$gpus_raw" | jq -cr '.data'`
 
-  busid=`echo $gpuList | jq -r ".[$i].b"`
-  busid_json=`jq ". += [\"$busid\"]" <<< "$busid_json"`
+uptime=`echo $stats_template | jq -r '.uptime'`
+online=$(date --date "-$uptime sec" +%s) #absolute time
 
+hr=`echo $stats_template | jq '[.gpus[].proof * 100 | floor / 100]'`
+total_hr=`echo $stats_template | jq '[.gpus[].proof * 100] | add | floor / 100'`
 
-  hr=`echo $gpuHrStr | sed -e 's/GPU #.*: //; s# it\/s##'`
-  hr_json=`jq ". += [$hr]" <<< "$hr_json"`
-  totalHr=`echo "$totalHr + $hr" | bc`
+share=`echo $stats_template | jq '[.gpus[].valid]'`
+total_share=`echo $stats_template | jq '[.gpus[].valid] | add | tonumber'`
+
+badshare=`echo $stats_template | jq '[.gpus[].inval]'`
+total_badshare=`echo $stats_template | jq '[.gpus[].inval] | add'`
+
+busidRaw=`echo $stats_template | jq -r '[.gpus[].bus]'`
+busid='[]'
+temp='[]'
+fan='[]'
+
+for (( i=0; i < `echo $busidRaw | jq 'length'`; i++ )); do
+  tempVal=
+  fanVal=
+  busidHex=
+
+  bus=`echo $busidRaw | jq -r ".[$i]"`
+  if [[ $bus != 0 ]]; then
+    busidHex=`printf "%x" $bus | tr '[:upper:]' '[:lower:]'`
+    [[ `echo ${#busidHex}` -eq 1 ]] && busidHex="0$busidHex"
+
+  else
+    device=`echo $stats_template | jq -r ".gpus[$i].device"`
+    if [[ $device == 'CPU' ]]; then
+      tempVal=`get_cpu_temp`
+      cpuFanRPMIntel=(`sensors -u *-isa-* 2>/dev/null | grep fan -A1 | grep _input | sed 's/.*_input: //'`)
+      for v in ${cpuFanRPMIntel[@]}; do
+          [ ${v::-4} -gt 0 ] && fanVal=${v::-4}
+      done
+    fi
+  fi
+  busid=`jq ". + [\"$busidHex\"]" <<< "$busid"`
+  temp=`jq ". + [\"$tempVal\"]" <<< "$temp"`
+  fan=`jq ". + [\"$fanVal\"]" <<< "$fan"`
 done
 
-if [[ ! -z $busid_json ]]; then
-  data=`jq ". += {\"busid\": $busid_json}" <<< "$data"`
-fi
+data=$(jq -nc \
+  --arg miner "apoolminer" \
+  --arg algo "qubic" \
+  --arg ver "$ver" \
+  --argjson online "$online" \
+  --argjson hr "$hr" \
+  --argjson total_hr "$total_hr" \
+  --argjson share "$share" \
+  --argjson total_share "$total_share" \
+  --argjson badshare "$badshare" \
+  --argjson total_badshare "$total_badshare" \
+  --argjson busid "$busid" \
+  --argjson temp "$temp" \
+  --argjson fan "$fan" \
+  '{
+    $miner, $algo, $ver, $online,
+    $hr, $total_hr,
+    $share, $total_share,
+    $badshare, $total_badshare,
+    $busid,
+    $temp, $fan
+  }')
 
-if [[ ! -z $hr_json ]]; then
-  data=`jq ". += {\"hr\": $hr_json}" <<< "$data"`
-  data=`jq ". += {\"total_hr\": $totalHr}" <<< "$data"`
+if [[ ! -z $COIN ]]; then
+  data=`jq ". += {\"coin\": \"$COIN\"}" <<< "$data"`
 fi
-
-allStatstr=`tail -n 20 $LOG | grep SOL: | tail -n 1`
-totalSolutions=`echo $allStatstr | sed -e 's/.*SOL: //; s#/.*##'`
-if [[ ! -z $totalSolutions ]]; then
-  data=`jq ". += {\"total_share\": $totalSolutions}" <<< "$data"`
-fi
-
-epoch=`echo $allStatstr | sed -e 's/.*E://; s# .*##'`
-[[ $epoch ]] && ver="$ver|E${epoch}"
-data=`jq ". += {\"ver\": \"$ver\"}" <<< "$data"`
 
 #   finally return json data
 echo "$data" | jq -c
