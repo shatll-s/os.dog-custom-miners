@@ -41,17 +41,9 @@ cd $baseDir
 CFG_FILENAME="miner.cfg"
 . $CFG_FILENAME
 
-LOG="/dog/log/apoolminer.log"
 
-algo="qubic"
-ver=`$baseDir/$miner --version | sed 's/ApoolMiner //'`
-[[ ! $ver ]] && ver='unknown'
-
-gpus_raw=`curl -s --connect-timeout 3 --max-time 5 http://127.0.0.1:$API_PORT/gpu`
-
-if [[ $? -ne 0 || -z $gpus_raw ]]; then
-  exit 1
-fi
+# functions
+####################################################################################
 
 # shellcheck disable=SC2120
 function get_cpu_temp() {
@@ -74,6 +66,17 @@ function get_cpu_temp() {
 	[[ ! -z $input && ! -z ${inputs[input]} ]] && temp=`awk '{ printf("%.0f\n", $1/1000)}' ${inputs[input]} 2>/dev/null`
 	echo "${temp:-null}"
 }
+####################################################################################
+
+LOG="/dog/log/apoolminer.log"
+
+algo="qubic"
+ver=`$baseDir/$miner --version | sed 's/ApoolMiner //'`
+[[ ! $ver ]] && ver='unknown'
+
+# . miner.cfg && curl -s --connect-timeout 3 --max-time 5 http://127.0.0.1:$API_PORT/gpu
+gpus_raw=`curl -s --connect-timeout 3 --max-time 5 http://127.0.0.1:$API_PORT/gpu`
+[[ $? -ne 0 || -z $gpus_raw ]] && exit 1
 
 stats_template=`echo "$gpus_raw" | jq -cr '.data'`
 
