@@ -1,6 +1,6 @@
 **Available miners**
 
-**Qubic apool** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic-apool/qubic-apoolminer-1.9.0.tar.gz`
+**Qubic apool** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic-apool/qubic-apoolminer-autoupdate.tar.gz`
 
 **Qubic** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic/qubic-miner-1.9.7.tar.gz`
 
