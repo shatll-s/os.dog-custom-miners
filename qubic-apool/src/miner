@@ -20,7 +20,12 @@ CFG_FILENAME="miner.cfg"
 ####################################################################################
 LOG="/dog/log/apoolminer.log"
 EXECFILE="apoolminer"
+CURRENCY="qubic"
+CURRENCY_URL="https://www.apool.io/check/prod/"$CURRENCY"/version"
 #	custom package body
+
+# functions
+####################################################################################
 
 #function NeedToInstall() {
 #	local ver=`apt-cache policy $1 | grep Installed | sed 's/Installed://; s/\s*//'`
@@ -47,8 +52,66 @@ EXECFILE="apoolminer"
 #	echo -e "${GREEN}> g++-11 already installed${NOCOLOR}"
 #fi
 
+Check_version() {
+  oss_url_code=$(curl -s -o /dev/null -w '%{http_code}' "$CURRENCY_URL" | head -n 1)
+  if [ $oss_url_code -eq 200 ]; then
+      rawVersion=`./$EXECFILE  -V 2>&1`
+      [[ $? -ne 0 ]] && local_version='unknown' || local_version=`echo $rawVersion | awk '{print $NF}'`
 
+      latest_version=$(curl -s "$CURRENCY_URL" | awk -F '@' '{print $1}' | head -n 1)
+      echo -e "Local version:\t${CYAN}$local_version${WHITE}"
+      echo -e "Latest version:\t${CYAN}$latest_version${WHITE}"
+
+      [[ "$latest_version" != "$local_version" ]] && return 1
+  else
+      echo "Failed to connect to the URL"
+      echo "$(date +"%Y-%m-%d %H:%M:%S")     ERROR Failed to connect to the URL" | tee --append $LOG
+  fi
+  return 0
+}
+
+Download() {
+    WORK_DIR="/tmp/apoolminer"
+    rm -rf $WORK_DIR
+    mkdir -p $WORK_DIR
+
+    oss_url_code=$(curl -s -o /dev/null -w '%{http_code}' "$CURRENCY_URL" | head -n 1)
+    if [ $oss_url_code -eq 200 ]; then
+        latest_version=$(curl -s "$CURRENCY_URL" | awk -F '@' '{print $1}' | head -n 1)
+        md5=$(curl -s "$CURRENCY_URL" | awk -F '@' '{print $2}' | head -n 1)
+        dl_latest_url=$(curl -s "$CURRENCY_URL" | awk -F '@' '{print $3}' | head -n 1)
+        rm -f $WORK_DIR/archive.tar.xz
+        [ -t 1 ] && wget $dl_latest_url -O $WORK_DIR/archive.tar.xz || wget -q $dl_latest_url -O $WORK_DIR/archive.tar.xz
+        echo -e "${GREEN}> download completed${WHITE}"
+
+        if [ "$(md5sum $WORK_DIR/archive.tar.xz | awk '{print $1}')" == "$md5" ]; then
+          echo -e "${GREEN}> md5sum match${WHITE}"
+            tar xf $WORK_DIR/archive.tar.xz -C $WORK_DIR
+            rm -rf $WORK_DIR/archive.tar.xz
+            chmod +x $WORK_DIR/apoolminer
+            mv $WORK_DIR/apoolminer .
+        else
+          echo -e "${GREEN}> download failed, md5sum mismatch${WHITE}"
+          echo "$(date +"%Y-%m-%d %H:%M:%S")     ERROR Failed to download, MD5 incoherence" | tee --append $LOG
+        fi
+    else
+        echo "Failed to connect to the URL"
+        echo "$(date +"%Y-%m-%d %H:%M:%S")     ERROR Failed to connect to the URL" | tee --append $LOG
+    fi
+}
 ####################################################################################
+
+Check_version
+
+needToUpgrade=$?
+
+if [ $needToUpgrade -eq 1 ]; then
+  echo -e "${BROWN}> need to download new version${WHITE}"
+  Download
+else
+  echo -e "${GREEN}> no need to download new version${WHITE}"
+fi
+
 [[ $POOL ]] && pool=$POOL || pool="qubic1.hk.apool.io:3334"
 threads=`nproc`
 alias=`cat /etc/hostname`
