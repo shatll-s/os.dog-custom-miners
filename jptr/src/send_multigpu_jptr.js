@@ -256,9 +256,11 @@ function main() {
                     // procid.stdout.on('data', (data) => {
                     //     console.log(`stdout: ${data}`);
                     // })
-                    // procid.stderr.on('data', (data) => {
-                    //     console.log(`err: ${data}`);
-                    // })
+                    procid.stderr.on('data', (data) => {
+                        if (enableLogging && data.toString().includes('instant speed')) {
+                            console.log(`native miner: ${data}`);
+                        }
+                    });
                     handlers.push(procid);
                     procid.on('exit', () => {
                         let mined = undefined;
