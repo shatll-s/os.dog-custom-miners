@@ -54,7 +54,6 @@ miner="aleominer"
 ver="3.0.3"
 
 LOG_FILE="/dog/log/aleominer.log"
-LOG_FILE="/dog/log/aleo-f2pool-miner.log"
 GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 

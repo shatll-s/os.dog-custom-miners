@@ -18,6 +18,8 @@
 
 **GPU** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/gpu/gpu-miner-0.3.tar.gz`
 
+**Aleo** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/aleo/aleominer-3.0.3-a.tar.gz`
+
 Only the current versions are presented here. For previous versions, check the repository
 
 **Create custom miner archive**
