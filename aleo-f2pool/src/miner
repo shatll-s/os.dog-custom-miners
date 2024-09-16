@@ -31,7 +31,7 @@ args=
 
 if [[ "$ADDITION" != *"-d "* ]]; then
   nvidiaGpuCount=`gpu-detect NVIDIA`
-  [[ $nvidiaGpuCount -gt 0 ]] && echo -e "${RED}> No NVIDIA GPU detected${WHITE}" && exit 1
+  [[ $nvidiaGpuCount -eq 0 ]] && echo -e "${RED}> No NVIDIA GPU detected${WHITE}" && exit 1
   let maxGpu=$nvidiaGpuCount-1
 
   args+=" -d 0"
