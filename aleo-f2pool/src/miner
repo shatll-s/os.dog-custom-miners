@@ -41,9 +41,12 @@ if [[ "$ADDITION" != *"-d "* ]]; then
 fi
 
 args="$args $ADDITION"
+batch="./aleominer $args"
 
 $LINE
-echo -e "${GREEN}> Starting custom miner${WHITE}"
-batch="./aleominer $args"
+
+echo -e "${GREEN}> Starting custom miner with next settings:${WHITE}"
+echo -e "$batch"
+
 #	unbuffer is needed to keep colors with tee
 unbuffer $batch 2>&1 | tee --append $LOG
