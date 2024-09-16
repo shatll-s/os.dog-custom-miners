@@ -352,6 +352,8 @@ function sendMinedBoc(wallet, seqno, keyPair, giverAddress, boc) {
                 to: wallet.address,
                 body: transfer
             }))).endCell();
+
+            console.log(msg.toBoc().toString('base64'))
             let k = 0;
             let lastError;
             while (k < 20) {
