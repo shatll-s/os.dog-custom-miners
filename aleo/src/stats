@@ -51,7 +51,6 @@
 
 algo="zksnark"
 miner="aleominer"
-ver="3.0.3"
 
 LOG_FILE="/dog/log/aleominer.log"
 GPU_STATS="/run/dog/gpuStats"
@@ -71,6 +70,8 @@ done
 hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
 
 total_hr=$(tail -n 200 $LOG_FILE |grep "Speed(S/s)" | awk 'END {print}'| awk '{print $3}')
+ver=$(tail -n 200 $LOG_FILE |grep "Version" | awk 'END {print}'| awk '{print $3}')
+[[ ! $ver ]] && ver='unknown'
 
 data=$(
     jq -n \
