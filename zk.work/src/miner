@@ -30,7 +30,11 @@ tmpDir="/tmp/tmp_zkwork"
 needToDownload=1
 if [[ -f $EXEC_FILE ]]; then
   md5sum=`md5sum $EXEC_FILE | awk '{print $1}'`
-  [[ $md5sum == $EXEC_FILE_SUM ]] && needToDownload=0 || echo -e "${RED}> Miner file is downloaded, but corrupted${WHITE}"
+  if [[ $md5sum == $EXEC_FILE_SUM ]]; then
+    needToDownload=0
+  else
+    echo -e "${RED}> Miner file is downloaded, but corrupted${WHITE}"
+  fi
 fi
 
 if [[ $needToDownload == 1 ]]; then
