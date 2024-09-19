@@ -1,5 +1,9 @@
 **Available miners**
 
+**Aleo zk.work** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/zk.work/zkwork-0.2.0.tar.gz`
+
+**Aleo** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/aleo/aleominer-3.0.4-a.tar.gz`
+
 **Qubic apool** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic-apool/qubic-apoolminer-autoupdate.tar.gz`
 
 **Qubic** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic/qubic-miner-1.9.7.tar.gz`
@@ -17,8 +21,6 @@
 **Upowai** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/upowai/upowai-miner-3c.tar.gz`
 
 **GPU** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/gpu/gpu-miner-0.3.tar.gz`
-
-**Aleo** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/aleo/aleominer-3.0.4-a.tar.gz`
 
 Only the current versions are presented here. For previous versions, check the repository
 
