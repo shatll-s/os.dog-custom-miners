@@ -19,8 +19,9 @@ CFG_FILENAME="miner.cfg"
 ####################################################################################
 MINER_DIR=files
 CONFIG_FILE=$MINER_DIR/config.txt
+MINER_URL='https://github.com/6block/zkwork_aleo_gpu_worker/releases/download/v0.2.1/aleo_prover-v0.2.1.tar.gz'
 EXEC_FILE='aleo_prover'
-EXEC_FILE_SUM='be04fdc9e928b78490bd90d707c43cc3'
+EXEC_FILE_SUM='9f0f15a0834f7654eed44c9147eec757'
 LOG="/dog/log/zkwork.log"
 
 #	custom package body
@@ -41,7 +42,7 @@ if [[ $needToDownload == 1 ]]; then
   echo -e "${BROWN}> Need to download ${CYAN}$EXEC_FILE${WHITE}"
   rm -rf $tmpDir
   mkdir -p $tmpDir
-  wget --no-check-certificate https://github.com/6block/zkwork_aleo_gpu_worker/releases/download/v0.2.0/aleo_prover-v0.2.0.tar.gz -O $tmpDir/archive.tar.gz
+  wget --no-check-certificate $MINER_URL -O $tmpDir/archive.tar.gz
 
   tar -xf $tmpDir/archive.tar.gz -C $tmpDir
   mv $tmpDir/aleo_prover/aleo_prover aleo_prover
