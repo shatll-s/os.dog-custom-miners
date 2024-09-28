@@ -2,7 +2,7 @@
 
 **Aleo zk.work** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/zk.work/zkwork-0.2.3.tar.gz`
 
-**Aleo miner for f2pool** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/aleo/aleominer-3.0.6.tar.gz`
+**Aleo miner for f2pool** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/aleo/aleominer-3.0.8.tar.gz`
 
 **Qubic apool** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic-apool/qubic-apoolminer-autoupdate.tar.gz`
 
