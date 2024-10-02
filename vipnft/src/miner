@@ -62,7 +62,7 @@ cd $MINER_DIR
 
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
-batch="node send_universal.js --bin ./pow-miner-cuda $args"
+batch="node send_multigpu.js --bin ./pow-miner-cuda $args"
 #	unbuffer is needed to keep colors with tee
 unbuffer $batch 2>&1 | tee --append $LOG
 
