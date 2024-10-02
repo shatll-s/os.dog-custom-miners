@@ -42,7 +42,6 @@ fi
 dir=files
 if [[ ! -d $dir/.git ]]; then
 	echo "> git dir does not exist, cloning"
-	git clone https://github.com/TrueCarry/JettonGramGpuMiner.git $dir
 	git clone https://github.com/troman29/vipnft-miner-gpu.git $dir
 	#wget https://github.com/tontechio/pow-miner-gpu/releases/download/20211230.1/minertools-cuda-ubuntu-18.04-x86-64.tar.gz -O minertools.tar.gz
 	#tar -xzvf minertools.tar.gz -C $dir
