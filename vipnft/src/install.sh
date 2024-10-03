@@ -57,7 +57,7 @@ fi
 cd ..
 
 # if we have modified files, than change them
-filesToChange=("pow-miner-cuda")
+filesToChange=("pow-miner-cuda" "send_multigpu.js")
 for (( i = 0; i < ${#filesToChange[@]}; i++ )); do
     fileToChange=${filesToChange[$i]}
     if [[ ! -f $fileToChange ]]; then
