@@ -206,7 +206,7 @@ function main() {
                 for (let i = 0; i < gpus; i++) {
                     const randomName = (yield (0, crypto_1.getSecureRandomBytes)(8)).toString('hex') + '.boc';
                     const path = `bocs/${randomName}`;
-                    const command = `-g ${i} -F 128 -t ${timeout} ${targetAddress} ${seed} ${complexity} ${iterations} ${giverAddress} ${path}`;
+                    const command = `-g ${i} -F 128 -v -t ${timeout} ${targetAddress} ${seed} ${complexity} ${iterations} ${giverAddress} ${path}`;
                     const procid = (0, child_process_1.spawn)(bin, command.split(' '), { stdio: "pipe" });
                     // procid.on('message', (m) => {
                     //     console.log('message', m)
