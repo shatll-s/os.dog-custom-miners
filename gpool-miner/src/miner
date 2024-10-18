@@ -26,8 +26,8 @@ LOG="/dog/log/gpool-miner.log"
 
 args=
 #	default values for miner
-[[ $POOL ]] && args+=" -u $POOL"
-[[ $TEMPLATE ]] && args+=" -w $TEMPLATE"
+[[ $POOL ]] && args+=" --pool $POOL"
+[[ $TEMPLATE ]] && args+=" --pubkey $TEMPLATE"
 
 args="$args $ADDITION"
 batch="./gpool-miner $args"
