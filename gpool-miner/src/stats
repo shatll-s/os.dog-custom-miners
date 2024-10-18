@@ -49,31 +49,27 @@
 #
 #echo "$stats"
 
-algo="zksnark"
-miner="aleominer"
+algo="ore"
+miner="gpool-miner"
 
-LOG_FILE="/dog/log/aleominer.log"
+LOG_FILE="/dog/log/gpool-miner.log"
 GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 
 busid_json='[]'
 hr_json='[]'
 total_hr=0
-#declare -a hr_data=( )
-#
-## initialise array with 0
-#for (( i=0; i < gpuCount; i++ )); do
-#  hr_data+=(0)
-#done
+linesToSearch=200
 
-logPart=`tail -n 30 $LOG_FILE`
+#remove all unread symbols
+logPart=`tail -n $linesToSearch $LOG_FILE | tr '\n' '@' | tr -dc '[[:print:]]' | tr '@' '\n' | sed 's/\[00m//g' | tr '\|' @ | sed '/^@/!d'`
 for (( i=0; i < gpuCount; i++ )); do
     busid=`jq -r ".gpu[$i].b" < "$GPU_STATS"`
     busid_json=`jq ". += [\"$busid\"]" <<< "$busid_json"`
-    hrStr=`echo "$logPart" | grep "GPU($i)" | tail -n 1`
-    rawHr=`echo "$hrStr" | awk '{print $3}'`
 
-    if [[ $rawHr =~ ^[0-9]+$ ]]; then
+    hrStr=`echo "$logPart" | grep -E "^@[[:space:]]$i[[:space:]]" `
+    rawHr=`echo $hrStr | sed "s#.*@[[:space:]]\([.0-9]*\).*H/s.*#\1#"`
+    if [[ $rawHr =~ ^[.0-9]+$ ]]; then
       hr=$rawHr
       total_hr=$(echo "$total_hr + $hr" | bc)
     else
@@ -82,8 +78,9 @@ for (( i=0; i < gpuCount; i++ )); do
     hr_json=`jq ". + [$hr]" <<< "$hr_json"`
 done
 
-ver=$(tail -n 200 $LOG_FILE |grep "Version" | awk 'END {print}'| awk '{print $3}')
-[[ ! $ver ]] && ver='unknown'
+#ver=$(tail -n 200 $LOG_FILE |grep "Version" | awk 'END {print}'| awk '{print $3}')
+#[[ ! $ver ]] && ver='unknown'
+ver='2024.42.1'
 
 data=$(
     jq -n \
