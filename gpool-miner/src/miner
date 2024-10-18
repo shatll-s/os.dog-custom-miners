@@ -1,0 +1,41 @@
+#!/bin/bash
+####################################################################################
+###
+### gpool-miner
+### os.dog integration: @osdog
+###
+####################################################################################
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+MINER_DIR=files
+CONFIG_FILE=$MINER_DIR/config.txt
+LOG="/dog/log/gpool-miner.log"
+
+#	custom package body
+####################################################################################
+
+args=
+#	default values for miner
+[[ $POOL ]] && args+=" -u $POOL"
+[[ $TEMPLATE ]] && args+=" -w $TEMPLATE"
+
+args="$args $ADDITION"
+batch="./gpool-miner $args"
+
+$LINE
+
+echo -e "${GREEN}> Starting custom miner with next settings:${WHITE}"
+echo -e "$batch"
+
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
