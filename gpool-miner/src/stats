@@ -22,35 +22,9 @@
 #		"coin":"NEXA"
 #	}
 
-##!/usr/bin/env bash
-#source $MINER_DIR/$CUSTOM_MINER/h-manifest.conf
-#
-#algo='aleo'
-#version="3.0.3"
-#stats=""
-#unit="S/s"
-#khs=0
-#hs=()
-#temp=()
-#fan=()
-#numbers=()
-#
-#khs=$(cat /root/hive/miners/custom/aleominer/aleominer1.log |grep "Speed(S/s)" | awk 'END {print}'| awk '{print $3}')
-#khs=$(echo "scale=5; $khs / 1000" | bc)
-#
-#khs_num=$(echo "$khs" | jq -R . | jq -s 'map(tonumber)[0]')
-#
-#stats=$(jq -nc --argjson khs "$khs_num" \
-#	--arg hs_units "$unit" \
-#	--arg ver "$version" \
-#	--arg algo "$algo" \
-#	'{"khs":$khs, "hs_units":$hs_units, "ver":$ver, "algo":$algo}')
-#
-#
-#echo "$stats"
-
 algo="ore"
 miner="gpool-miner"
+ver='2024.42.2'
 
 LOG_FILE="/dog/log/gpool-miner.log"
 GPU_STATS="/run/dog/gpuStats"
@@ -80,7 +54,6 @@ done
 
 #ver=$(tail -n 200 $LOG_FILE |grep "Version" | awk 'END {print}'| awk '{print $3}')
 #[[ ! $ver ]] && ver='unknown'
-ver='2024.42.1'
 
 data=$(
     jq -n \
