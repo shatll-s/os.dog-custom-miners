@@ -24,11 +24,30 @@
 
 algo="ore"
 miner="gpool-miner"
-ver='2024.42.2'
 
 LOG_FILE="/dog/log/gpool-miner.log"
+MINER_STARTED_FILE="`dirname $0`/miner.started"
+
+info_line=`tail -n 40 $LOG_FILE | grep -w "info" | tail -n 1`
+
+#Calculate miner log freshness
+maxDelay=120
+
+time_now=`date +%s`
+datetime_rep=`echo $info_line | awk '{print $1" "$2}'`
+time_rep=`date -d "$datetime_rep" +%s`
+diffTime=`echo $((time_now-time_rep)) | tr -d '-'`
+
+# if lat log update was > $maxDelay then exit
+[[ "$diffTime" -gt "$maxDelay" ]] && exit 0
+
 GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+
+ver=`echo $info_line | awk '{print $3}' | tr -d '()v'`
+[[ ! $ver ]] && ver='unknown'
+
+online=`stat -c %Y $MINER_STARTED_FILE`
 
 busid_json='[]'
 hr_json='[]'
@@ -52,20 +71,19 @@ for (( i=0; i < gpuCount; i++ )); do
     hr_json=`jq ". + [$hr]" <<< "$hr_json"`
 done
 
-#ver=$(tail -n 200 $LOG_FILE |grep "Version" | awk 'END {print}'| awk '{print $3}')
-#[[ ! $ver ]] && ver='unknown'
-
 data=$(
     jq -n \
         --arg algo "$algo" \
         --arg miner "$miner" \
         --arg ver "$ver" \
+        --arg online "$online" \
         --argjson busid "$busid_json" \
         --argjson hr "$hr_json" \
         --argjson total_hr "$total_hr" \
     '{
         miner: $miner,
         ver: $ver,
+        online: $online|tonumber,
         algo: $algo,
         total_hr: $total_hr,
         busid: $busid,

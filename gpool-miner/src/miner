@@ -18,7 +18,7 @@ CFG_FILENAME="miner.cfg"
 #	custom package variables
 ####################################################################################
 MINER_DIR=files
-CONFIG_FILE=$MINER_DIR/config.txt
+MINER_STARTED_FILE=miner.started
 LOG="/dog/log/gpool-miner.log"
 
 #	custom package body
@@ -37,5 +37,8 @@ $LINE
 echo -e "${GREEN}> Starting custom miner with next settings:${WHITE}"
 echo -e "$batch"
 
+rm -f $MINER_STARTED_FILE
+touch $MINER_STARTED_FILE
 #	unbuffer is needed to keep colors with tee
-unbuffer $batch 2>&1 | tee --append $LOG
+#unbuffer $batch 2>&1 | tee --append $LOG
+unbuffer $batch 2>&1 | tee $LOG
