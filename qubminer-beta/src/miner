@@ -28,7 +28,7 @@ process_user_config() {
 
         # Remove spaces only from the beginning of the line
         line=$(echo "$line" | sed 's/^[[:space:]]*//')
-
+        echo "line @$line@"
         # Extract parameter and its value from the configuration line
         param=$(awk -F':' '{gsub(/\"/, ""); print $1}' <<< "$line")
         value=$(awk -F':' '{gsub(/^[[:space:]]*/, ""); print substr($0, length($1) + 2)}' <<< "$line")
@@ -111,8 +111,8 @@ if [[ ! -z $TEMPLATE ]]; then
     Settings=$(jq --arg alias "$TEMPLATE" '.alias = $alias' <<< "$Settings")
 fi
 
-# Processing user configuration
-[[ ! -z $ADDITION ]] && process_user_config
+# Processing user configuration (check if $ADDITION is not empty and does not contain only spaces)
+[[ ! -z "${ADDITION// }" ]] && process_user_config
 
 # Adding poolAddress settings
 if [[ ! -z $POOL ]]; then
