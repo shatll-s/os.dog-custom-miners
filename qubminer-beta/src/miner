@@ -1,0 +1,71 @@
+#!/bin/bash
+####################################################################################
+###
+### qubminer beta for qubic.li
+### os.dog integration: shatll(@osdog)
+###
+####################################################################################
+
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+LOG="/dog/log/qubic.log"
+SETTINGS_FILE="appsettings.json"
+
+#	custom package body
+
+[[ $POOL ]] && pool=$POOL || pool="https://mine.qubic.li/"
+threads=`nproc`
+alias=`cat /etc/hostname`
+
+trainer=$(
+  jq -n \
+  '{
+  	"cpu": false,
+  	"gpu": true,
+  	"gpuVersion": "CUDA12"
+  }'
+)
+
+json=$(
+  jq -n \
+  --arg baseUrl "$pool" \
+  --argjson amountOfThreads $threads \
+  --argjson trainer "$trainer" \
+  --arg alias "$alias" \
+  '{
+    "Settings": {
+      $baseUrl, $amountOfThreads, $alias, $trainer,
+      "autoupdateEnabled": true,
+      "allowHwInfoCollect": true,
+    }
+  }'
+)
+
+if [[ ${#WALLET} -ge 61 ]]; then
+  json=`jq ".Settings += {\"accessToken\": \"$WALLET\"}" <<< "$json"`
+else
+  json=`jq ".Settings += {\"payoutId\": \"$WALLET\"}" <<< "$json"`
+fi
+
+#json=`jq ".Settings += {\"overwrites\": {\"CUDA\": \"12\"}}" <<< "$json"`
+
+echo "$json" > $SETTINGS_FILE
+
+$LINE
+echo -e "${GREEN}> Starting custom miner with next settings:${WHITE}"
+echo $json | jq '.'
+
+batch="./qli-Client $args"
+
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
