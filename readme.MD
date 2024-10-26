@@ -2,7 +2,7 @@
 
 **Gpool-miner** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/gpool-miner/gpool-miner-2024.43.1.tar.gz`
 
-**Aleo zk.work** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/zk.work/zkwork-0.2.3.tar.gz`
+**Aleo zk.work** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/zk.work/zkwork-0.2.4.tar.gz`
 
 **Aleo miner for f2pool** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/aleo-f2pool/aleominer-3.0.10.tar.gz`
 

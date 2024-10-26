@@ -19,9 +19,9 @@ CFG_FILENAME="miner.cfg"
 ####################################################################################
 MINER_DIR=files
 CONFIG_FILE=$MINER_DIR/config.txt
-MINER_URL='https://github.com/6block/zkwork_aleo_gpu_worker/releases/download/v0.2.3/aleo_prover-v0.2.3_full.tar.gz'
+MINER_URL='https://github.com/6block/zkwork_aleo_gpu_worker/releases/download/cuda-v0.2.4/aleo_prover-v0.2.4_cuda_full.tar.gz'
 EXEC_FILE='aleo_prover'
-EXEC_FILE_SUM='989c966f903b1047ef215b172c944c57'
+EXEC_FILE_SUM='6f2cd658982777d5beb28db3c9eb7f18'
 LOG="/dog/log/zkwork.log"
 
 #	custom package body

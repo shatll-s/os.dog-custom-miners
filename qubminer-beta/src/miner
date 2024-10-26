@@ -92,7 +92,7 @@ process_user_config() {
                 fi
             fi
         fi
-    done <<< "$ADDITION"
+    done <<< "{$ADDITION}"
 }
 
 # Main script logic
@@ -107,11 +107,12 @@ Settings="$GlobalSettings"
 eval "rm -rf $SETTINGS_FILE"
 
 # Processing the template (alias)
-if [[ ! -z $TEMPLATE ]]; then
-    Settings=$(jq --arg alias "$TEMPLATE" '.alias = $alias' <<< "$Settings")
+if [[ ! -z $ADDRESS ]]; then
+    Settings=$(jq --arg accessToken "$ADDRESS" '.accessToken = $accessToken' <<< "$Settings")
 fi
 
 # Processing user configuration (check if $ADDITION is not empty and does not contain only spaces)
+echo "addition $ADDITION"
 [[ ! -z "${ADDITION// }" ]] && process_user_config
 
 # Adding poolAddress settings
