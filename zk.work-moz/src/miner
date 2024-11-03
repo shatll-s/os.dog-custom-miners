@@ -27,8 +27,8 @@ LOG="/dog/log/zkwork-moz.log"
 
 args=
 #	default values for miner
-[[ $POOL ]] && args+=" --pool $POOL"
-[[ $TEMPLATE ]] && args+=" --address $TEMPLATE"
+[[ $POOL ]] && args+=" --lumozpool $POOL"
+[[ $TEMPLATE ]] && args+=" --mozaddress $TEMPLATE"
 
 if [[ "$ADDITION" != *"--custom_name "* ]]; then
   alias=`cat /etc/hostname`
