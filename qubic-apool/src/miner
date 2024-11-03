@@ -132,6 +132,7 @@ fi
 currency="qubic"
 [[ "$ADDITION" != *"--account"* ]] && args+=" --account $WALLET"
 [[ "$ADDITION" != *"--pool"* ]] && args+=" $MODEL $pool"
+[[ "$ADDITION" == *"--idle-batch"* ]] && args+=" $MODEL $pool"
 
 args+=" --worker $worker"
 args+=" --rest --port $API_PORT"

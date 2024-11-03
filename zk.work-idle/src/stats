@@ -1,0 +1,80 @@
+#!/bin/bash
+
+#	example
+#
+#	{
+#		"miner":"lolminer",
+#		"algo":"nexapow",
+#		"online":"1707474764",
+#		"total_hr":"71842910",
+#		"total_share":"1",
+#		"total_badshare":"0",
+#		"ver":"1.82a",
+#		"temp":[31,28,29,29,31,29,30,30],
+#		"temp2":[38,35,35,35,37,34,37,37],
+#		"temp3":[0,0,0,0,0,0,0,0],
+#		"fan":[45,45,44,45,44,44,45,46],
+#		"hr":[11580000,27740000,0,0,2990000,0,22650000,6880000],
+#		"share":[0,1,0,0,0,0,0,0],
+#		"badshare":[0,0,0,0,0,0,0,0],
+#		"invshare":[0,0,0,0,0,0,0,0],
+#		"busid":["03","05","06","07","09","0b","0c","0d"],
+#		"coin":"NEXA"
+#	}
+
+algo="zksnark"
+miner="zkwork"
+LOG_FILE="/dog/log/zkwork.log"
+EXEC_FILE="aleo_prover"
+GPU_STATS="/run/dog/gpuStats"
+gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+
+busid_json='[]'
+hr_json='[]'
+total_hr=0
+#declare -a hr_data=( )
+#
+## initialise array with 0
+#for (( i=0; i < gpuCount; i++ )); do
+#  hr_data+=(0)
+#done
+
+logPart=`tail -n 30 $LOG_FILE`
+for (( i=0; i < gpuCount; i++ )); do
+    busid=`jq -r ".gpu[$i].b" < "$GPU_STATS"`
+    busid_json=`jq ". += [\"$busid\"]" <<< "$busid_json"`
+
+    hrStr=`echo "$logPart" | grep "gpu\[$i\]" | tail -n 1`
+    rawHr=`echo "$hrStr" | awk '{print $5}'`
+
+    if [[ $rawHr =~ ^[0-9]+$ ]]; then
+      hr=$rawHr
+      total_hr=$(echo "$total_hr + $hr" | bc)
+    else
+      hr=0
+    fi
+    hr_json=`jq ". + [$hr]" <<< "$hr_json"`
+done
+
+execPath="$(dirname $0)/$EXEC_FILE"
+ver=`$execPath --version | awk '{print $2}'`
+[[ ! $ver ]] && ver='unknown'
+data=$(
+    jq -n \
+        --arg algo "$algo" \
+        --arg miner "$miner" \
+        --arg ver "$ver" \
+        --argjson busid "$busid_json" \
+        --argjson hr "$hr_json" \
+        --argjson total_hr "$total_hr" \
+    '{
+        miner: $miner,
+        ver: $ver,
+        algo: $algo,
+        total_hr: $total_hr,
+        busid: $busid,
+        hr: $hr,
+    }'
+)
+
+echo "$data" | jq -c

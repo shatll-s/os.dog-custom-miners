@@ -35,13 +35,47 @@ if [[ "$ADDITION" != *"--custom_name "* ]]; then
   args+=" --custom_name $alias"
 fi
 
+IDLE_ONLY=0
+if [[ "$ADDITION" == *" --qubic-idle-only"* ]]; then
+  ADDITION=`echo "$ADDITION" | sed -e "s/--qubic-idle-only//g"`
+  IDLE_ONLY=1
+fi
+
 args="$args $ADDITION"
 batch="./$EXEC_FILE $args"
 
-$LINE
+if [[ $IDLE_ONLY -eq 0 ]]; then
+  #	regular start
+  $LINE
 
-echo -e "${GREEN}> Starting custom miner with next settings:${WHITE}"
-echo -e "$batch"
+  echo -e "${GREEN}> Starting custom miner with next settings:${WHITE}"
+  echo -e "$batch"
 
-#	unbuffer is needed to keep colors with tee
-unbuffer $batch 2>&1 | tee --append $LOG
+  #	unbuffer is needed to keep colors with tee
+  unbuffer $batch 2>&1 | tee --append $LOG
+else
+  #	check qubic status
+  while true; do
+      response=$(curl -s http://qubic1.hk.apool.io:8001/api/qubic/epoch_challenge | grep -o '"mining_seed":"[^"]*"' | sed 's/.*"mining_seed":"\([^"]*\)".*/\1/')
+
+      if [ "$response" == "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" ]; then
+        if [[ ! `pgrep -f $EXEC_FILE` ]]; then
+          echo -e "${BROWN}> Qubic idle phase: starting custom miner with next settings:${WHITE}"
+          echo -e "$batch"
+          unbuffer $batch 2>&1 | tee --append $LOG &
+        else
+          echo -e "${GREEN}> Qubic idle phase: miner already running${WHITE}"
+        fi
+      else
+        pids=`pgrep -f $EXEC_FILE`
+        if [ "$pids" ]; then
+          echo -e "${GREEN}> Qubic active phase: stopping miner${WHITE}"
+          kill -9 "$pids"
+        else
+          echo -e "${GREEN}> Qubic active phase: miner is not running${WHITE}"
+        fi
+      fi
+
+      sleep 1
+  done
+fi
