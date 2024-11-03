@@ -69,8 +69,10 @@ else
         fi
       else
         pids=`pgrep -f $EXEC_FILE`
-        if [ "$pids" ]; then
+        if [[ "$pids" ]]; then
           echo -e "${GREEN}> Qubic active phase: stopping miner${WHITE}"
+#          echo "pids $pids"
+#          ps -A
           kill -9 "$pids"
           rm -f $LOG
         else
