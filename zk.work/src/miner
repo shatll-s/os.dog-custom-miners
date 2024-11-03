@@ -52,7 +52,8 @@ if [[ $IDLE_ONLY -eq 0 ]]; then
   echo -e "$batch"
 
   #	unbuffer is needed to keep colors with tee
-  unbuffer $batch 2>&1 | tee --append $LOG
+#  unbuffer $batch 2>&1 | tee --append $LOG
+  unbuffer $batch 2>&1 | tee $LOG
 else
   #	check qubic status
   while true; do
@@ -71,6 +72,7 @@ else
         if [ "$pids" ]; then
           echo -e "${GREEN}> Qubic active phase: stopping miner${WHITE}"
           kill -9 "$pids"
+          rm -f $LOG
         else
           echo -e "${GREEN}> Qubic active phase: miner is not running${WHITE}"
         fi
