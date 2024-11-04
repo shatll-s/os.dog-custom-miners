@@ -65,6 +65,7 @@ done
 execPath="$(dirname $0)/$EXEC_FILE"
 ver=`$execPath --version | awk '{print $2}'`
 [[ ! $ver ]] && ver='unknown'
+total_share=`grep -ic 'new proof generated' $LOG_FILE`
 data=$(
     jq -n \
         --arg algo "$algo" \
@@ -73,13 +74,15 @@ data=$(
         --argjson busid "$busid_json" \
         --argjson hr "$hr_json" \
         --argjson total_hr "$total_hr" \
+        --arg total_share "$total_share" \
     '{
         miner: $miner,
         ver: $ver,
         algo: $algo,
-        total_hr: $total_hr,
         busid: $busid,
         hr: $hr,
+        total_hr: $total_hr,
+        total_share: $total_share | tonumber
     }'
 )
 

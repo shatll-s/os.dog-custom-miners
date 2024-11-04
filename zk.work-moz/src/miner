@@ -52,7 +52,7 @@ if [[ $IDLE_ONLY -eq 0 ]]; then
   echo -e "$batch"
 
   #	unbuffer is needed to keep colors with tee
-  unbuffer $batch 2>&1 | tee --append $LOG
+  unbuffer $batch 2>&1 | tee $LOG
 else
   #	check qubic status
   while true; do
@@ -62,7 +62,7 @@ else
          if [[ ! `pgrep -f $EXEC_FILE` ]]; then
            echo -e "${BROWN}> Qubic idle phase: starting custom miner with next settings:${WHITE}"
            echo -e "$batch"
-           unbuffer $batch 2>&1 | tee --append $LOG &
+           unbuffer $batch 2>&1 | tee $LOG &
          else
            echo -e "${GREEN}> Qubic idle phase: miner already running${WHITE}"
          fi
