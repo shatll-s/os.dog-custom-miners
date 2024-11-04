@@ -74,7 +74,7 @@ else
 #          echo "pids $pids"
 #          ps -A
 
-          killall -9 "$EXEC_FILE"
+          killall -9 -q "$EXEC_FILE"
           rm -f $LOG
         else
           echo -e "${GREEN}> Qubic active phase: miner is not running${WHITE}"
