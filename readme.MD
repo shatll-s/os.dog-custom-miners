@@ -4,6 +4,8 @@
 
 **Aleo zk.work** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/zk.work/zk.work-0.2.4-full-g.tar.gz`
 
+**Aleo zk.work AMD** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/aleo-zk.work-amd/aleo-zk.work-amd-0.2.4.tar.gz`
+
 **Lumoz zk.work** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/zk.work-moz/zk.work-moz-0.1.tar.gz`
 
 **Aleo miner for f2pool** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/aleo-f2pool/aleominer-3.0.12.tar.gz`
