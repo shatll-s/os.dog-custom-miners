@@ -32,7 +32,7 @@
 baseDir=`dirname $0`
 
 
-LOG="/dog/log/qubic.log"
+LOG="/dog/log/qubic-minerlab.log"
 
 algo="qubic"
 miner="qli-Client"
