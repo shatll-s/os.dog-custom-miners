@@ -65,7 +65,7 @@ fi
 #cd $MINER_DIR
 ### COMMENT ALL END ###
 $LINE
-batch="dotnet Martiscoin.Node.dll"
+batch="dotnet files/Martiscoin.Node.dll"
 echo -e "${GREEN}> Starting custom miner with next command line:${WHITE}"
 echo "$batch"
 #	unbuffer is needed to keep colors with tee
