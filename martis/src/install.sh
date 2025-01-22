@@ -43,7 +43,7 @@ dir=files
 if [[ ! -d $dir/.git ]]; then
   [[ ! -d $dir ]] && mkdir $dir
 	echo -e "${BROWN}> git dir does not exist, cloning${WHITE}"
-	git clone $GIT_REPO.git $dir
+	git clone $GIT_REPO $dir
 
 	# now there is no need to do it, files is already in package
 	#wget https://github.com/tontechio/pow-miner-gpu/releases/download/20211230.1/minertools-cuda-ubuntu-18.04-x86-64.tar.gz -O minertools.tar.gz
@@ -54,7 +54,6 @@ else
 	echo -e "${GREEN}> git dir exist, just pull${WHITE}"
 	cd $dir
 	git pull
-	npm i
 fi
 
 #cd ..
