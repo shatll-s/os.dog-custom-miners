@@ -39,23 +39,24 @@ else
 	echo -e "${GREEN}> $package already installed${WHITE}"
 fi
 
-dir=files
-if [[ ! -d $dir/.git ]]; then
-  [[ ! -d $dir ]] && mkdir $dir
-	echo -e "${BROWN}> git dir does not exist, cloning${WHITE}"
-	git clone $GIT_REPO $dir
-
-	# now there is no need to do it, files is already in package
-	#wget https://github.com/tontechio/pow-miner-gpu/releases/download/20211230.1/minertools-cuda-ubuntu-18.04-x86-64.tar.gz -O minertools.tar.gz
-	#tar -xzvf minertools.tar.gz -C $dir
+### comment git clone ###
+#dir=files
+#if [[ ! -d $dir/.git ]]; then
+#  [[ ! -d $dir ]] && mkdir $dir
+#	echo -e "${BROWN}> git dir does not exist, cloning${WHITE}"
+#	git clone $GIT_REPO $dir
+#
+#	# now there is no need to do it, files is already in package
+#	#wget https://github.com/tontechio/pow-miner-gpu/releases/download/20211230.1/minertools-cuda-ubuntu-18.04-x86-64.tar.gz -O minertools.tar.gz
+#	#tar -xzvf minertools.tar.gz -C $dir
+##	cd $dir
+##	npm i
+#else
+#	echo -e "${GREEN}> git dir exist, just pull${WHITE}"
 #	cd $dir
-#	npm i
-else
-	echo -e "${GREEN}> git dir exist, just pull${WHITE}"
-	cd $dir
-	git pull
-fi
-
+#	git pull
+#fi
+### comment git clone end ###
 #cd ..
 #
 ## if we have modified files, than change them
