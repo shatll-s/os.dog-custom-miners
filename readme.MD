@@ -34,7 +34,9 @@
 
 **GPU** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/gpu/gpu-miner-0.3.tar.gz`
 
+**Martis** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/martis/martis-miner-0.1.tar.gz`
+
 Only the current versions are presented here. For previous versions, check the repository
 
 **Create custom miner archive**
-`rm -f files.md5 miner.tar.gz; find . -type f ! -name "files.md5" -exec md5sum {} \; > files.md5; tar -zcf miner.tar.gz *`
+`rm -f files.md5 miner.tar.gz; find . -type f ! -name "files.md5" -exec md5sum {} \; > files.md5; tar -zcf miner.tar.gz *; rm -f files.md5`
