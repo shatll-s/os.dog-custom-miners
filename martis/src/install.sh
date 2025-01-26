@@ -30,6 +30,10 @@ else
 	echo -e "${GREEN}> $package already installed${WHITE}"
 fi
 
+dir=$HOME/.martiscoin/
+mkdir -p $dir
+cp msc.conf $dir
+
 # install git
 #package="git"
 #if [[ $(NeedToInstall $package) -eq 1 ]]; then
