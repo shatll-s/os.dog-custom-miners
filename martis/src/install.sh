@@ -31,13 +31,13 @@ else
 fi
 
 # install git
-package="git"
-if [[ $(NeedToInstall $package) -eq 1 ]]; then
-	echo -e "${BROWN}> Install $package${WHITE}"
-	apt install -yqq $package
-else
-	echo -e "${GREEN}> $package already installed${WHITE}"
-fi
+#package="git"
+#if [[ $(NeedToInstall $package) -eq 1 ]]; then
+#	echo -e "${BROWN}> Install $package${WHITE}"
+#	apt install -yqq $package
+#else
+#	echo -e "${GREEN}> $package already installed${WHITE}"
+#fi
 
 ### comment git clone ###
 #dir=files

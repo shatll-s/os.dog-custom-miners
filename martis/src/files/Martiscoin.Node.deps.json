@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v8.0": {
-      "Martiscoin.Node/1.0.0": {
+      "Martiscoin.Node/2.0.0": {
         "dependencies": {
           "Martiscoin.Core": "1.0.0",
           "Martiscoin.Features.BlockStore": "1.0.0",
@@ -1766,7 +1766,7 @@
     }
   },
   "libraries": {
-    "Martiscoin.Node/1.0.0": {
+    "Martiscoin.Node/2.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
