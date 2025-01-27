@@ -42,9 +42,15 @@ if [[ $(cat /etc/default/grub | grep -c ipv6.disable=1) -ne 0 ]]; then
   msg "Need to reboot" info "Need to reboot after GRUB update"
 fi
 
-# remove opencl-amdgpu-pro-icd if needed
-if [[ $(dpkg -l | grep opencl-amdgpu-pro-icd -c) -ne 0 ]]; then
-  apt-get remove -yqq --purge opencl-amdgpu-pro-icd
+# remove some packages
+package="opencl-amdgpu-pro-icd"
+if [[ $(dpkg -l | grep $package -c) -ne 0 ]]; then
+  apt-get remove -yqq --purge $package
+fi
+
+package="opencl-legacy-amdgpu-pro-icd:amd64"
+if [[ $(dpkg -l | grep $package -c) -ne 0 ]]; then
+  apt-get remove -yqq --purge $package
 fi
 
 # install git
