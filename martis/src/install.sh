@@ -43,6 +43,7 @@ if [[ $(cat /etc/default/grub | grep -c ipv6.disable=1) -ne 0 ]]; then
 fi
 
 # remove some packages
+echo -e "${GREEN}> Check if we need to remove some packages${WHITE}"
 package="opencl-amdgpu-pro-icd"
 if [[ $(dpkg -l | grep $package -c) -ne 0 ]]; then
   apt-get remove -yqq --purge $package
@@ -52,6 +53,12 @@ package="opencl-legacy-amdgpu-pro-icd:amd64"
 if [[ $(dpkg -l | grep $package -c) -ne 0 ]]; then
   apt-get remove -yqq --purge $package
 fi
+
+package="rocm-opencl"
+if [[ $(dpkg -l | grep $package -c) -ne 0 ]]; then
+  apt-get remove -yqq --purge $package
+fi
+echo -e "${GREEN}> All unwanted packages removed${WHITE}"
 
 # install git
 #package="git"
