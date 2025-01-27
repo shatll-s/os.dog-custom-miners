@@ -34,6 +34,19 @@ dir=$HOME/.martiscoin/
 mkdir -p $dir
 cp msc.conf $dir
 
+# update grub to allow ipv6
+if [[ $(cat /etc/default/grub | grep -c ipv6.disable=1) -ne 0 ]]; then
+  sed -i "s/ipv6.disable=1 //" /etc/default/grub
+  sleep 1
+  update-grub
+  msg "Need to reboot" info "Need to reboot after GRUB update"
+fi
+
+# remove opencl-amdgpu-pro-icd if needed
+if [[ $(dpkg -l | grep opencl-amdgpu-pro-icd -c) -ne 0 ]]; then
+  apt-get remove -yqq --purge opencl-amdgpu-pro-icd
+fi
+
 # install git
 #package="git"
 #if [[ $(NeedToInstall $package) -eq 1 ]]; then
