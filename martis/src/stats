@@ -25,7 +25,7 @@
 algo="martis"
 miner="martis-node"
 
-LOG_FILE=$HOME/.martiscoin/logs/node.txt
+LOG_FILE=/root/.martiscoin/logs/node.txt
 
 info_line=`tail -n 40 $LOG_FILE | grep -w "hash-rate" | tail -n 1`
 
@@ -42,6 +42,7 @@ diffTime=`echo $((time_now-time_rep)) | tr -d '-'`
 
 #ver=`echo $info_line | awk '{print $3}' | tr -d '()v'`
 #[[ ! $ver ]] && ver='unknown'
+var="0.15"
 
 busid_json='[]'
 hr_json='[]'
