@@ -42,7 +42,12 @@ diffTime=`echo $((time_now-time_rep)) | tr -d '-'`
 
 #ver=`echo $info_line | awk '{print $3}' | tr -d '()v'`
 #[[ ! $ver ]] && ver='unknown'
-var="0.15"
+ver="0.16"
+
+balance=`tail -n 100 $LOG_FILE | grep -w "Confirmed balance" | tail -n 1 | awk '{print $5}'`
+if [[ $balance ]]; then
+  ver="$ver | $balance MSC"
+fi
 
 busid_json='[]'
 hr_json='[]'
