@@ -37,7 +37,9 @@ LOG="/dog/log/qubic-minerlab.log"
 algo="qubic"
 miner="qli-Client"
 
-ver=`$baseDir/qli-Client --version | sed 's/Client Version //'`
+ver=`$baseDir/qli-Client --version | grep Version | sed 's/.*Version //'`
+ver=`echo $ver` # to remove spaces
+
 [[ ! $ver ]] && ver='unknown'
 
 data=$(
