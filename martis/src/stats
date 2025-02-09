@@ -24,7 +24,7 @@
 
 algo="martis"
 miner="martis-node"
-ver="0.29"
+ver="0.40"
 multiplier=1000000
 linesToSearch=40
 
@@ -40,30 +40,29 @@ for (( i=0; i < gpuCount; i++ )); do
     logFile="$dir/Martiscoin/logs/node.txt"
     info_line=`tail -n $linesToSearch $logFile | grep -w "hash-rate" | tail -n 1`
 
-    if [[ ! $info_line ]]; then
-      rawHr=0
-    else
-      rawHr=`echo $info_line | sed "s#.*hash-rate=\([.0-9]*\).*Hash/sec.*#\1#"`
-      rawHr=`echo "scale=0; $rawHr * $multiplier / 1" | bc -l`
+    [[ ! $info_line ]] && continue
 
-      if [[ $i -eq 0 ]]; then
-        #Calculate miner log freshness
-        maxDelay=60
+    #Calculate miner log freshness
+    maxDelay=60
 
-        time_now=`date +%s`
-        datetime_rep=`echo $info_line | awk '{print $1" "$2}' | sed 's/\[//'`
-        time_rep=`date -d "$datetime_rep" +%s`
-        diffTime=`echo $((time_now-time_rep)) | tr -d '-'`
+    time_now=`date +%s`
+    datetime_rep=`echo $info_line | awk '{print $1" "$2}' | sed 's/\[//'`
+    time_rep=`date -d "$datetime_rep" +%s`
+    diffTime=`echo $((time_now-time_rep)) | tr -d '-'`
 
-        # if last log update was > $maxDelay then exit
-        [[ "$diffTime" -gt "$maxDelay" ]] && exit 0
+    # if last log update was > $maxDelay then exit
+    [[ "$diffTime" -gt "$maxDelay" ]] && continue
 
-        balance=`tail -n 100 $logFile | grep -w "Confirmed balance" | tail -n 1 | awk '{print $5}'`
-        if [[ $balance ]]; then
-          ver="$ver | $balance MSC"
-        fi
+    if [[ $i -eq 0 ]]; then
+      balance=`tail -n 100 $logFile | grep -w "Confirmed balance" | tail -n 1 | awk '{print $5}'`
+
+      if [[ $balance ]]; then
+        ver="$ver | $balance MSC"
       fi
     fi
+
+    rawHr=`echo $info_line | sed "s#.*hash-rate=\([.0-9]*\).*Hash/sec.*#\1#"`
+    rawHr=`echo "scale=0; $rawHr * $multiplier / 1" | bc -l`
 
     busid=`jq -r ".gpu[$i].b" < "$GPU_STATS"`
     busid_json=`jq ". += [\"$busid\"]" <<< "$busid_json"`
