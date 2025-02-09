@@ -31,13 +31,13 @@ LOG="/dog/log/martis-miner.log"
 
 args=$ADDITION
 
-conf="SEED=$WALLET"								            #	wallet = seed
-[[ $PASS ]] && conf+="\nTONAPI_TOKEN=$PASS"		#	pass = tonapi token
-if [[ "$ADDITION" == *"--target-address"* ]]; then
-  target_address=`echo $ADDITION | sed -e 's/.*--target-address //; s/ .*//'`
-  [[ $target_address ]] && conf+="\nTARGET_ADDRESS=$target_address"
-  args=`echo "$args" | sed -e "s/--target-address $target_address//"`
-fi
+#conf="SEED=$WALLET"								            #	wallet = seed
+#[[ $PASS ]] && conf+="\nTONAPI_TOKEN=$PASS"		#	pass = tonapi token
+#if [[ "$ADDITION" == *"--target-address"* ]]; then
+#  target_address=`echo $ADDITION | sed -e 's/.*--target-address //; s/ .*//'`
+#  [[ $target_address ]] && conf+="\nTARGET_ADDRESS=$target_address"
+#  args=`echo "$args" | sed -e "s/--target-address $target_address//"`
+#fi
 
 ### COMMENT ALL ###
 #echo -e "$conf" > $CONFIG_FILE					      #	write seed and optionally api token to config file
@@ -65,12 +65,22 @@ fi
 #cd $MINER_DIR
 ### COMMENT ALL END ###
 
+HOME_NODE="192.168.2.9:19333"
 
 GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 for (( i=0; i < gpuCount; i++ )); do
+  dir="home/user/martiscoin/node$i"
+  mkdir -p $dir
+  cp msg.config $dir
+  args="-apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i"
+  args+=" -connect=$HOME_NODE -addnode=$HOME_NODE -iprangefiltering=0"
+  args+=" -datadir=$dir"
+  batch="dotnet files/Martiscoin.Node.dll $args"
   echo "GPU[$i] starting mining..."
-  screen -dmS node$i dotnet files/Martiscoin.Node.dll -apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=msc1qehqmxmnr708gnlzpckydm6nk52aux4wzfac3lq -server=0 -mine=1 -useopencl=1 -opencldevice=$i -connect=192.168.88.21:39333 -addnode=192.168.88.21:39333 -iprangefiltering=0 -datadir=/home/user/martiscoin/node$i -addnode=106.107.196.162 -addnode=180.191.254.43 -addnode=111.38.43.235
+  screen-kill node$i
+  screen -dmS node$i $batch
+#  screen -dmS node$i dotnet files/Martiscoin.Node.dll -apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i -connect=192.168.88.21:39333 -addnode=192.168.88.21:39333 -iprangefiltering=0 -datadir=/home/user/martiscoin/node$i -addnode=106.107.196.162 -addnode=180.191.254.43 -addnode=111.38.43.235
 done
 
 tail -f /dev/null

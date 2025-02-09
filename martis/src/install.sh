@@ -30,9 +30,9 @@ else
 	echo -e "${GREEN}> $package already installed${WHITE}"
 fi
 
-dir=$HOME/.martiscoin/
-mkdir -p $dir
-cp msc.conf $dir
+#dir=$HOME/.martiscoin/
+#mkdir -p $dir
+#cp msc.conf $dir
 
 # update grub to allow ipv6
 if [[ $(cat /etc/default/grub | grep -c ipv6.disable=1) -ne 0 ]]; then
