@@ -41,12 +41,15 @@ if [[ "$ADDITION" == *"-homenode="* ]]; then
   echo -e "${CYAN}> Got home node in config: $homeNode${WHITE}"
 fi
 
+if [[ "$ADDITION" == *"-gpu-count="* ]]; then
+  gpuCount=`echo "$ADDITION" | sed -e 's/.*-gpu-count=//; s/ .*//'`
+else
+  GPU_STATS="/run/dog/gpuStats"
+  gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+fi
 
-#HOME_NODE="192.168.2.9:19333"
 
-
-GPU_STATS="/run/dog/gpuStats"
-gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+screen-kill node
 for (( i=0; i < gpuCount; i++ )); do
   dir="/home/user/martiscoin/node$i"
   mkdir -p $dir
@@ -67,7 +70,6 @@ for (( i=0; i < gpuCount; i++ )); do
 
   batch="dotnet files/Martiscoin.Node.dll $args $ADDITION"
   echo -e "${BROWN}> GPU[$i] batch:${WHITE}\n$batch\n"
-  screen-kill node$i
   screen -dmS node$i $batch
 done
 
@@ -75,11 +77,7 @@ trap ctrl_c INT
 
 function ctrl_c() {
   echo "Ctrl + C happened"
-  screen -ls
-  for (( i=0; i < gpuCount; i++ )); do
-      screen-kill node$i
-  done
-  screen -ls
+  screen-kill node
 }
 
 tail -f /dev/null
