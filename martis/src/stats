@@ -24,7 +24,7 @@
 
 algo="drillx"
 miner="martis-node"
-ver="0.26"
+ver="0.27"
 multiplier=1000000
 linesToSearch=40
 
