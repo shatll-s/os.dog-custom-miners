@@ -36,7 +36,7 @@ GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 
 for (( i=0; i < gpuCount; i++ )); do
-    dir="home/user/martiscoin/node$i"
+    dir="/home/user/martiscoin/node$i"
     logFile="$dir/Martiscoin/logs/node.txt"
     info_line=`tail -n $linesToSearch $logFile | grep -w "hash-rate" | tail -n 1`
 
