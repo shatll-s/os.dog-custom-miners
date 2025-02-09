@@ -24,52 +24,49 @@
 
 algo="martis"
 miner="martis-node"
-
-LOG_FILE=/root/.martiscoin/logs/node.txt
-
-info_line=`tail -n 40 $LOG_FILE | grep -w "hash-rate" | tail -n 1`
-
-#Calculate miner log freshness
-maxDelay=60
-
-time_now=`date +%s`
-datetime_rep=`echo $info_line | awk '{print $1" "$2}' | sed 's/\[//'`
-time_rep=`date -d "$datetime_rep" +%s`
-diffTime=`echo $((time_now-time_rep)) | tr -d '-'`
-
-# if lat log update was > $maxDelay then exit
-[[ "$diffTime" -gt "$maxDelay" ]] && exit 0
-
-#ver=`echo $info_line | awk '{print $3}' | tr -d '()v'`
-#[[ ! $ver ]] && ver='unknown'
-ver="0.16"
-
-balance=`tail -n 100 $LOG_FILE | grep -w "Confirmed balance" | tail -n 1 | awk '{print $5}'`
-if [[ $balance ]]; then
-  ver="$ver | $balance MSC"
-fi
+ver="0.20"
+multiplier=1000000
+linesToSearch=40
 
 busid_json='[]'
 hr_json='[]'
 total_hr=0
-linesToSearch=200
-
-#rawHr=`echo $info_line | sed "s#.*hash-rate=[[:space:]]\([.0-9]*\).*H/s.*#\1#"`
-rawHr=`echo $info_line | sed "s#.*hash-rate=\([.0-9]*\).*Hash/sec.*#\1#"`
 
 GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
-#remove all unread symbols
-logPart=`tail -n $linesToSearch $LOG_FILE | tr '\n' '@' | tr -dc '[[:print:]]' | tr '@' '\n' | sed 's/\[00m//g' | tr '\|' @ | sed '/^@/!d'`
+
 for (( i=0; i < gpuCount; i++ )); do
+    dir="home/user/martiscoin/node$i"
+    logFile="$dir/Martiscoin/logs/node.txt"
+    info_line=`tail -n $linesToSearch $logFile | grep -w "hash-rate" | tail -n 1`
+
+    if [[ ! $info_line ]]; then
+      rawHr=0
+    else
+      rawHr=`echo $info_line | sed "s#.*hash-rate=\([.0-9]*\).*Hash/sec.*#\1#"`
+      rawHr=`echo "scale=0; $rawHr * $multiplier / 1" | bc -l`
+
+      if [[ $i -eq 0 ]]; then
+        #Calculate miner log freshness
+        maxDelay=60
+
+        time_now=`date +%s`
+        datetime_rep=`echo $info_line | awk '{print $1" "$2}' | sed 's/\[//'`
+        time_rep=`date -d "$datetime_rep" +%s`
+        diffTime=`echo $((time_now-time_rep)) | tr -d '-'`
+
+        # if last log update was > $maxDelay then exit
+        [[ "$diffTime" -gt "$maxDelay" ]] && exit 0
+
+        balance=`tail -n 100 $logFile | grep -w "Confirmed balance" | tail -n 1 | awk '{print $5}'`
+        if [[ $balance ]]; then
+          ver="$ver | $balance MSC"
+        fi
+      fi
+    fi
+
     busid=`jq -r ".gpu[$i].b" < "$GPU_STATS"`
     busid_json=`jq ". += [\"$busid\"]" <<< "$busid_json"`
-
-#    hrStr=`echo "$logPart" | grep -E "^@[[:space:]]$i[[:space:]]" `
-#    rawHr=`echo $hrStr | sed "s#.*@[[:space:]]\([.0-9]*\).*H/s.*#\1#"`
-    rawHr=`echo $info_line | sed "s#.*hash-rate=\([.0-9]*\).*Hash/sec.*#\1#"`
-    multiplier=1000000
-    rawHr=`echo "scale=0; $rawHr * $multiplier / 1" | bc -l`
 
     if [[ $rawHr =~ ^[.0-9]+$ ]]; then
       hr=$rawHr
@@ -78,7 +75,7 @@ for (( i=0; i < gpuCount; i++ )); do
       hr=0
     fi
     hr_json=`jq ". + [$hr]" <<< "$hr_json"`
-    break # because only 0 gpu is working
+   # break # because only 0 gpu is working
 done
 
 data=$(

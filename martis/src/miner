@@ -72,7 +72,7 @@ gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 for (( i=0; i < gpuCount; i++ )); do
   dir="home/user/martiscoin/node$i"
   mkdir -p $dir
-  cp msg.config $dir
+  cp msc.conf $dir
   args="-apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i"
   args+=" -connect=$HOME_NODE -addnode=$HOME_NODE -iprangefiltering=0"
   args+=" -datadir=$dir"
@@ -82,5 +82,16 @@ for (( i=0; i < gpuCount; i++ )); do
   screen -dmS node$i $batch
 #  screen -dmS node$i dotnet files/Martiscoin.Node.dll -apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i -connect=192.168.88.21:39333 -addnode=192.168.88.21:39333 -iprangefiltering=0 -datadir=/home/user/martiscoin/node$i -addnode=106.107.196.162 -addnode=180.191.254.43 -addnode=111.38.43.235
 done
+
+trap ctrl_c INT
+
+function ctrl_c() {
+  echo "Ctrl + C happened"
+  screen -ls
+  for (( i=0; i < gpuCount; i++ )); do
+      screen-kill node$i
+  done
+  screen -ls
+}
 
 tail -f /dev/null
