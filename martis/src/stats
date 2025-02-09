@@ -22,9 +22,9 @@
 #		"coin":"NEXA"
 #	}
 
-algo="martis"
+algo="drillx"
 miner="martis-node"
-ver="0.20"
+ver="0.22"
 multiplier=1000000
 linesToSearch=40
 

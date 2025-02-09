@@ -73,12 +73,12 @@ for (( i=0; i < gpuCount; i++ )); do
   dir="home/user/martiscoin/node$i"
   mkdir -p $dir
   cp msc.conf $dir
-  args="-apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i"
-#  args+=" -connect=$HOME_NODE -addnode=$HOME_NODE -iprangefiltering=0"
-  args+=" -addnode=$HOME_NODE -iprangefiltering=0"
-  args+=" -datadir=$dir"
+  #  args="-apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i"
+  #  args+=" -connect=$HOME_NODE -addnode=$HOME_NODE -iprangefiltering=0"
+  args="-datadir=$dir -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i"
+  args+=" -addnode=$HOME_NODE -whitelist=$HOME_NODE -iprangefiltering=0"
   batch="dotnet files/Martiscoin.Node.dll $args"
-  echo "GPU[$i] starting mining..."
+  echo -e "GPU[$i] starting mining with next batch:\n$batch"
   screen-kill node$i
   screen -dmS node$i $batch
 #  screen -dmS node$i dotnet files/Martiscoin.Node.dll -apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i -connect=192.168.88.21:39333 -addnode=192.168.88.21:39333 -iprangefiltering=0 -datadir=/home/user/martiscoin/node$i -addnode=106.107.196.162 -addnode=180.191.254.43 -addnode=111.38.43.235
