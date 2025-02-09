@@ -29,7 +29,21 @@ LOG="/dog/log/martis-miner.log"
 #	remove this string or install something right here
 ./install.sh
 
-HOME_NODE="192.168.2.9:19333"
+
+if [[ "$ADDITION" == *"-homenode="* ]]; then
+  homeNode=`echo "$ADDITION" | sed -e 's/.*-homenode=//; s/ .*//'`
+  homeNodeIp=`echo $homeNode | awk -F ':' '{print $1}'`
+  homeNodePort=`echo $homeNode | awk -F ':' '{print $2}'`
+  ip=`cat /run/dog/stats | jq -r '.ip[0]'`
+
+  ADDITION=`echo "$ADDITION" | sed -e "s/-homenode=$homeNode//"`
+
+  echo -e "${CYAN}> Got home node in config: $homeNode${WHITE}"
+fi
+
+
+#HOME_NODE="192.168.2.9:19333"
+
 
 GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
@@ -37,13 +51,22 @@ for (( i=0; i < gpuCount; i++ )); do
   dir="/home/user/martiscoin/node$i"
   mkdir -p $dir
   cp msc.conf "$dir/Martiscoin/msc.conf"
+
+  apiPort="5552$i"
   #  args="-apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i"
   #  args+=" -connect=$HOME_NODE -addnode=$HOME_NODE -iprangefiltering=0"
-  args="-datadir=$dir -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i"
-  [[ "$ADDITION" != *"-apiport="* ]] && args+=" -apiport=5552$i"
-  args+=" -addnode=$HOME_NODE -whitelist=$HOME_NODE -iprangefiltering=0"
+  args="-datadir=$dir -mineaddress=$WALLET -iprangefiltering=0 -server=0 -mine=1 -useopencl=1 -opencldevice=$i"
+  [[ "$ADDITION" != *"-apiport="* ]] && args+=" -apiport=$apiPort"
+  if [[ $homeNode ]]; then
+    if [[ $homeNodeIp == $ip && $homeNodePort == $apiPort ]]; then
+      echo -e "> Home node is the same as current node"
+    else
+      args+=" -addnode=$homeNode -whitelist=$homeNode"
+    fi
+  fi
+
   batch="dotnet files/Martiscoin.Node.dll $args $ADDITION"
-  echo -e "GPU[$i] starting mining with next batch:\n$batch"
+  echo -e "${BROWN}> GPU[$i] batch:${WHITE}\n$batch\n"
   screen-kill node$i
   screen -dmS node$i $batch
 done
