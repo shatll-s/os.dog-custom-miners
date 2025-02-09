@@ -74,7 +74,8 @@ for (( i=0; i < gpuCount; i++ )); do
   mkdir -p $dir
   cp msc.conf $dir
   args="-apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i"
-  args+=" -connect=$HOME_NODE -addnode=$HOME_NODE -iprangefiltering=0"
+#  args+=" -connect=$HOME_NODE -addnode=$HOME_NODE -iprangefiltering=0"
+  args+=" -addnode=$HOME_NODE -iprangefiltering=0"
   args+=" -datadir=$dir"
   batch="dotnet files/Martiscoin.Node.dll $args"
   echo "GPU[$i] starting mining..."
