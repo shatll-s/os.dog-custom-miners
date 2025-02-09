@@ -64,10 +64,13 @@ fi
 #
 #cd $MINER_DIR
 ### COMMENT ALL END ###
-$LINE
-batch="dotnet files/Martiscoin.Node.dll"
-echo -e "${GREEN}> Starting custom miner with next command line:${WHITE}"
-echo "$batch"
-#	unbuffer is needed to keep colors with tee
-unbuffer $batch 2>&1 | tee --append $LOG
 
+
+GPU_STATS="/run/dog/gpuStats"
+gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+for (( i=0; i < gpuCount; i++ )); do
+  echo "GPU[$i] starting mining..."
+  screen -dmS node$i dotnet files/Martiscoin.Node.dll -apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=msc1qehqmxmnr708gnlzpckydm6nk52aux4wzfac3lq -server=0 -mine=1 -useopencl=1 -opencldevice=$i -connect=192.168.88.21:39333 -addnode=192.168.88.21:39333 -iprangefiltering=0 -datadir=/home/user/martiscoin/node$i -addnode=106.107.196.162 -addnode=180.191.254.43 -addnode=111.38.43.235
+done
+
+tail -f /dev/null
