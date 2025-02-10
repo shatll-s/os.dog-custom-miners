@@ -1,6 +1,6 @@
 **Available miners**
 
-**Gpool-miner** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/gpool-miner/gpool-miner-2025.06.01.tar.gz`
+**Gpool-miner** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/gpool-miner/gpool-miner-2025.06.2.tar.gz`
 
 **Aleo zk.work** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/zk.work/zk.work-0.2.5-hotfix2.tar.gz`
 
