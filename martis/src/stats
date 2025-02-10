@@ -24,7 +24,7 @@
 
 algo="martis"
 miner="martis-node"
-ver="0.40"
+ver="0.31"
 multiplier=1000000
 linesToSearch=40
 
@@ -38,7 +38,7 @@ gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 for (( i=0; i < gpuCount; i++ )); do
     dir="/home/user/martiscoin/node$i"
     logFile="$dir/Martiscoin/logs/node.txt"
-    info_line=`tail -n $linesToSearch $logFile | grep -w "hash-rate" | tail -n 1`
+    info_line=`tail -n $linesToSearch $logFile 2>/dev/null | grep -w "hash-rate" | tail -n 1`
 
     [[ ! $info_line ]] && continue
 
