@@ -29,25 +29,15 @@ LOG="/dog/log/martis-miner.log"
 #	remove this string or install something right here
 ./install.sh
 
-
-if [[ "$ADDITION" == *"-homenode="* ]]; then
-  homeNode=`echo "$ADDITION" | sed -e 's/.*-homenode=//; s/ .*//'`
-  homeNodeIp=`echo $homeNode | awk -F ':' '{print $1}'`
-  homeNodePort=`echo $homeNode | awk -F ':' '{print $2}'`
-  ip=`cat /run/dog/stats | jq -r '.ip[0]'`
-
-  ADDITION=`echo "$ADDITION" | sed -e "s/-homenode=$homeNode//"`
-
-  echo -e "${CYAN}> Got home node in config: $homeNode${WHITE}"
-fi
-
 if [[ "$ADDITION" == *"-gpu-count="* ]]; then
   gpuCount=`echo "$ADDITION" | sed -e 's/.*-gpu-count=//; s/ .*//'`
-else
+  [[ $gpuCount == "all" ]] && unset gpuCount # to fit next if block
+fi
+
+if [[ ! $gpuCount ]]; then
   GPU_STATS="/run/dog/gpuStats"
   gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 fi
-
 
 screen-kill node
 for (( i=0; i < gpuCount; i++ )); do
@@ -58,15 +48,9 @@ for (( i=0; i < gpuCount; i++ )); do
   apiPort="5552$i"
   #  args="-apiuri=http://0.0.0.0 -apiport=4242$i -mineaddress=$WALLET -server=0 -mine=1 -useopencl=1 -opencldevice=$i"
   #  args+=" -connect=$HOME_NODE -addnode=$HOME_NODE -iprangefiltering=0"
-  args="-datadir=$dir -mineaddress=$WALLET -iprangefiltering=0 -server=0 -mine=1 -useopencl=1 -opencldevice=$i"
+  args="-datadir=$dir -mineaddress=$WALLET -iprangefiltering=0 -server=0 -mine=1 -useopencl=1 -opencldevice=$i -port=1933$i"
   [[ "$ADDITION" != *"-apiport="* ]] && args+=" -apiport=$apiPort"
-  if [[ $homeNode ]]; then
-    if [[ $homeNodeIp == $ip && $homeNodePort == $apiPort ]]; then
-      echo -e "> Home node is the same as current node"
-    else
-      args+=" -addnode=$homeNode -whitelist=$homeNode"
-    fi
-  fi
+  [[ $i -gt 0 ]] && args+=" -connect=127.0.0.1:19330" # all nodes should connect to first one
 
   batch="dotnet files/Martiscoin.Node.dll $args $ADDITION"
   echo -e "${BROWN}> GPU[$i] batch:${WHITE}\n$batch\n"

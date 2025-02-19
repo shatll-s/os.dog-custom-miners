@@ -24,9 +24,9 @@
 
 algo="martis"
 miner="martis-node"
-ver="0.31"
+ver="0.32"
 multiplier=1000000
-linesToSearch=40
+linesToSearch=200
 
 busid_json='[]'
 hr_json='[]'
