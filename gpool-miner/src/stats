@@ -22,7 +22,7 @@
 #		"coin":"NEXA"
 #	}
 
-algo="ore"
+algo="dpowhash"
 miner="gpool-miner"
 
 LOG_FILE="/dog/log/gpool-miner.log"
