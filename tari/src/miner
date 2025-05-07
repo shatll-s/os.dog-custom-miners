@@ -33,7 +33,7 @@ $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
 echo "$batch"
 #./glytex --engine opencl -a 144ENZgvAHFKiF1RKKhBNEMR2yuB5JjPdWNsjjjzaosWhhrquDsLp3yvj5DneGSC2dCSzFuU6PCp1ATHcNoN4cmRc94 -u http://192.168.10.126:18142
-batch="./glytex -a $WALLET $args"
+batch="./glytex -a $WALLET $args --http-server-enabled true --http-server-port $API_PORT"
 #	unbuffer is needed to keep colors with tee
 unbuffer $batch 2>&1 | tee --append $LOG
 

@@ -36,6 +36,8 @@
 
 **Martis** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/martis/martis-miner-0.16.tar.gz`
 
+**Tari** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/refs/heads/main/tari/tari-0.1.tar.gz`
+
 Only the current versions are presented here. For previous versions, check the repository
 
 **Create custom miner archive**
