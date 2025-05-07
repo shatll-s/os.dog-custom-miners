@@ -1,0 +1,39 @@
+#!/bin/bash
+####################################################################################
+###
+### tari
+### os.dog integration: @osdog
+###
+####################################################################################
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+LOG="/dog/log/tari-miner.log"
+
+#	custom package body
+####################################################################################
+
+#	this miner need many dependencies, so install script is placed in individual file
+#	if the miner is builded or you don`t need to install ton of dependecies, you can
+#	remove this string or install something right here
+./install.sh									
+
+args=$ADDITION
+
+$LINE
+echo -e "${GREEN}> Starting custom miner${WHITE}"
+echo "$batch"
+#./glytex --engine opencl -a 144ENZgvAHFKiF1RKKhBNEMR2yuB5JjPdWNsjjjzaosWhhrquDsLp3yvj5DneGSC2dCSzFuU6PCp1ATHcNoN4cmRc94 -u http://192.168.10.126:18142
+batch="./glytex -a $WALLET $args"
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
+
