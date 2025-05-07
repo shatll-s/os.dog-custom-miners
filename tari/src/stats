@@ -31,7 +31,9 @@ minername="glytex"
 #	The file contains the following variables:
 #	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
 CFG_FILENAME="miner.cfg"
-. $CFG_FILENAME
+
+dirname=$(dirname "$0")
+. $dirname/$CFG_FILENAME
 
 LOG_FILE="/dog/log/tari-miner.log"
 GPU_STATS="/run/dog/gpuStats"
