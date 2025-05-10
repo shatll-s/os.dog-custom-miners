@@ -16,7 +16,7 @@
 
 **Qubic** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubminer-beta/qubminer-beta-0.1.tar.gz`
 
-**Qubic minerlab** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic-minerlab/qubic-minerlab-0.6.tar.gz`
+**Qubic minerlab** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic-minerlab/qubic-minerlab-0.7.tar.gz`
 
 **Qubic CPU** `https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/main/qubic-cpu/qubic-cpu-miner-2.2.1.0.tar.gz`
 
