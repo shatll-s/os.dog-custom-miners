@@ -29,15 +29,14 @@ LOG="/dog/log/8infinity-miner.log"
 #	remove this string or install something right here
 ./install.sh
 
-$ADDITION
 master_address=`echo $ADDITION | sed -e 's/.*--master-address //; s/ .*//'`
 master_pkey=`echo $ADDITION | sed -e 's/.*--master-pkey //; s/ .*//'`
 conf="REWARDS_RECIPIENT_ADDRESS=$WALLET"
-conf+="\MASTER_ADDRESS=$master_address"
-conf+="\MASTER_PKEY=$master_pkey"
+conf+="\nMASTER_ADDRESS=$master_address"
+conf+="\nMASTER_PKEY=$master_pkey"
 
-conf+="\INFINITY_RPC=https://rpc.blaze.soniclabs.com"
-conf+="\INFINITY_WS=wss://rpc.blaze.soniclabs.com"
+conf+="\nINFINITY_RPC=https://rpc.blaze.soniclabs.com"
+conf+="\nINFINITY_WS=wss://rpc.blaze.soniclabs.com"
 
 echo -e "$conf" > $CONFIG_FILE
 
@@ -45,8 +44,6 @@ echo -e "$conf" > $CONFIG_FILE
 #[[ "$ADDITION" != *"--givers"* ]] && args+=" --givers 1000"
 #[[ "$ADDITION" != *"--api"* ]] && args+=" --api tonhub"
 #[[ "$ADDITION" != *"--gpu-count"* ]] && args+=" --gpu-count $(gpu-detect NVIDIA)"
-
-cd $MINER_DIR
 
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
