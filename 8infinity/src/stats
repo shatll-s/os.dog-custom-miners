@@ -23,8 +23,7 @@
 #	}
 
 algo="8infinity"
-miner="glytex"
-
+miner="8infinity"
 #	global variables, don`t change it
 ####################################################################################
 #	The file contains the following variables:
@@ -46,21 +45,14 @@ for (( i=0; i < gpuCount; i++ )); do
   hr_data+=(0)
 done
 
-stats_template=`curl -s --connect-timeout 3 --max-time 5 http://127.0.0.1:$API_PORT/stats`
-[[ $? -ne 0 || -z $stats_template ]] && exit 1
-
 for (( i=0; i < gpuCount; i++ )); do
     busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
 
     busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
 
-    rawHr=`echo $stats_template | jq ".hashrate_per_device.\"$i\".ten_seconds | floor"`
-
-    if (( $(echo "$rawHr > 0" | bc -l) )); then
-        hr_data[$i]=$rawHr
-    fi
 done
-#hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+
+hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
 #
 ## calculate total_hr
 #totalHr=0
@@ -77,15 +69,13 @@ data=$(
     '{
         miner: $miner,
         algo: $algo,
-        total_hr: "'"$totalHr"'",
         busid: $busid,
         hr: $hr
     }'
 )
-
 container_start_time=$(docker inspect --format='{{.State.StartedAt}}' "$MINERNAME")
-if [[ ! -z $online_raw ]]; then
-  online=$(date -d "$start_time" +"%s")
+if [[ ! -z $container_start_time ]]; then
+  online=$(date -d "$container_start_time" +"%s")
   data=`jq ". += {\"online\": $online}" <<< "$data"`
 fi
 
