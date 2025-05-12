@@ -1,0 +1,40 @@
+#!/bin/bash
+[ -t 1 ] && . /dog/colors
+
+function NeedToInstall() {
+	local ver=`apt-cache policy $1 | grep Installed | sed 's/Installed://; s/\s*//'`
+	if [[ $2 ]]; then #min ver provided
+    local majorVer=$(echo $ver | cut -d- -f1)
+    if (( $(echo "$majorVer > $2" | bc -l) )); then
+        echo 0
+    else
+        echo 1
+    fi
+  else
+	  [[ $ver && $ver != '(none)' ]] && echo 0 || echo 1
+  fi
+}
+
+
+if [[ $(NeedToInstall python3) -eq 1 ]]; then
+	echo -e "> Install python3"
+  apt update
+	apt install python3 -yqq --no-install-recommends
+else
+	echo -e "${GREEN}> python3 already installed${WHITE}"
+fi
+
+if [[ $(NeedToInstall python3-pip) -eq 1 ]]; then
+	echo -e "> Install python3-pip"
+  apt update
+	apt install python3-pip -yqq --no-install-recommends
+else
+	echo -e "${GREEN}> python3-pip already installed${WHITE}"
+fi
+
+pip install ecdsa eth_abi web3 dotenv
+pip install websocket --use-pep517
+pip install websocket-client
+
+echo -e "${GREEN}> install script complete${WHITE}"
+

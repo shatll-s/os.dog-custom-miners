@@ -1,0 +1,53 @@
+#!/bin/bash
+####################################################################################
+###
+### 8infinity miner
+### os.dog integration: @osdog
+###
+####################################################################################
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+MINER_DIR=files
+CONFIG_FILE=$MINER_DIR/.env
+LOG="/dog/log/8infinity-miner.log"
+
+#	custom package body
+####################################################################################
+
+#	this miner need many dependencies, so install script is placed in individual file
+#	if the miner is builded or you don`t need to install ton of dependecies, you can
+#	remove this string or install something right here
+./install.sh
+
+master_address=`echo $ADDITION | sed -e 's/.*--master-address //; s/ .*//'`
+master_pkey=`echo $ADDITION | sed -e 's/.*--master-pkey //; s/ .*//'`
+conf="REWARDS_RECIPIENT_ADDRESS=$WALLET"
+conf+="\nMASTER_ADDRESS=$master_address"
+conf+="\nMASTER_PKEY=$master_pkey"
+
+conf+="\nINFINITY_RPC=https://rpc.blaze.soniclabs.com"
+conf+="\nINFINITY_WS=wss://rpc.blaze.soniclabs.com"
+
+echo -e "$conf" > $CONFIG_FILE
+
+##	default values for miner
+#[[ "$ADDITION" != *"--givers"* ]] && args+=" --givers 1000"
+#[[ "$ADDITION" != *"--api"* ]] && args+=" --api tonhub"
+#[[ "$ADDITION" != *"--gpu-count"* ]] && args+=" --gpu-count $(gpu-detect NVIDIA)"
+
+$LINE
+echo -e "${GREEN}> Starting custom miner${WHITE}"
+batch="python3 files/mine_infinity.py"
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
+
