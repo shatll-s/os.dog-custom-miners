@@ -15,7 +15,6 @@ function NeedToInstall() {
   fi
 }
 
-
 if [[ $(NeedToInstall python3) -eq 1 ]]; then
 	echo -e "> Install python3"
   apt update
@@ -32,9 +31,8 @@ else
 	echo -e "${GREEN}> python3-pip already installed${WHITE}"
 fi
 
-pip install ecdsa eth_abi web3 dotenv
-pip install websocket --use-pep517
-pip install websocket-client
+pip install ecdsa eth_abi web3 dotenv --quiet
+pip install websocket --use-pep517 --quiet
+pip install websocket-client --quiet
 
 echo -e "${GREEN}> install script complete${WHITE}"
-

@@ -31,12 +31,18 @@ LOG="/dog/log/8infinity-miner.log"
 
 master_address=`echo $ADDITION | sed -e 's/.*--master-address //; s/ .*//'`
 master_pkey=`echo $ADDITION | sed -e 's/.*--master-pkey //; s/ .*//'`
+
+infinity_rpc=`echo $ADDITION | sed -e 's/.*--infinity_rpc //; s/ .*//'`
+infinity_ws=`echo $ADDITION | sed -e 's/.*--infinity_ws //; s/ .*//'`
+[[ ! $infinity_rpc ]] && infinity_rpc="https://rpc.blaze.soniclabs.com"
+[[ ! $infinity_ws ]] && infinity_ws="wss://rpc.blaze.soniclabs.com"
+
 conf="REWARDS_RECIPIENT_ADDRESS=$WALLET"
 conf+="\nMASTER_ADDRESS=$master_address"
 conf+="\nMASTER_PKEY=$master_pkey"
 
-conf+="\nINFINITY_RPC=https://rpc.blaze.soniclabs.com"
-conf+="\nINFINITY_WS=wss://rpc.blaze.soniclabs.com"
+conf+="\nINFINITY_RPC=$infinity_rpc"
+conf+="\nINFINITY_WS=$infinity_ws"
 
 echo -e "$conf" > $CONFIG_FILE
 
