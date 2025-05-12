@@ -86,4 +86,4 @@ echo -e "${GREEN}> Starting custom miner${WHITE}"
 
 # exec it needed to change main process from shell to unbuffer + docker
 #	unbuffer is needed to keep colors with tee
-exec unbuffer docker run --gpus all --rm -it --name MINERNAME -v ./$CONFIG_FILE:/app/.env otonashilabs/infinity-miner:latest python3 mine_infinity.py 2>&1 | tee --append "$LOG"
+exec unbuffer docker run --gpus all --rm -it --name $MINERNAME -v ./$CONFIG_FILE:/app/.env otonashilabs/infinity-miner:latest python3 mine_infinity.py 2>&1 | tee --append "$LOG"
