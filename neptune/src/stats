@@ -22,9 +22,9 @@
 #		"coin":"NEXA"
 #	}
 
-algo="tari"
-miner="glytex"
-minername="glytex"
+algo="neptune"
+miner="neptune_prover"
+EXEC_FILE="dr_neptune_prover"
 
 #	global variables, don`t change it
 ####################################################################################
@@ -35,7 +35,7 @@ CFG_FILENAME="miner.cfg"
 dirname=$(dirname "$0")
 . $dirname/$CFG_FILENAME
 
-LOG_FILE="/dog/log/tari-miner.log"
+LOG_FILE="/dog/log/neptune.log"
 GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 
@@ -47,47 +47,48 @@ for (( i=0; i < gpuCount; i++ )); do
   hr_data+=(0)
 done
 
-stats_template=`curl -s --connect-timeout 3 --max-time 5 http://127.0.0.1:$API_PORT/stats`
-[[ $? -ne 0 || -z $stats_template ]] && exit 1
-
 for (( i=0; i < gpuCount; i++ )); do
     busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
 
     busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
 
-    rawHr=`echo $stats_template | jq ".hashrate_per_device.\"$i\".ten_seconds | floor"`
-
-    if (( $(echo "$rawHr > 0" | bc -l) )); then
-        hr_data[$i]=$rawHr
-    fi
+    #rawHr=`echo $stats_template | jq ".hashrate_per_device.\"$i\".ten_seconds | floor"`
+    #
+    #if (( $(echo "$rawHr > 0" | bc -l) )); then
+    #    hr_data[$i]=$rawHr
+    #fi
 done
-hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
-
+#hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
 # calculate total_hr
-totalHr=0
-for hr in "${hr_data[@]}"; do
-    totalHr=$(echo "$totalHr + $hr" | bc)
-done
+
+khs=$(tail -n 100 $LOG_FILE |grep "Last 1m speed(KP/s)" | awk 'END {print}'| awk '{print $5}')
+totalHr=$(echo "$khs" | jq -R . | jq -s 'map(tonumber)[0]')
+
+online_raw=`ps -C $EXEC_FILE -o etimes= | awk '{print $1}' | tac | tail -n 1`
+if [[ ! -z $online_raw ]]; then
+  online=$(date --date "-$online_raw sec" +%s) #absolute time
+  #data=`jq ". += {\"online\": $online}" <<< "$data"`
+fi
+
+execPath="$(dirname $0)/$EXEC_FILE"
+ver=`$execPath --version | awk '{print $3}'`
+[[ ! $ver ]] && ver='unknown'
 
 data=$(
     jq -n \
         --arg algo "$algo" \
         --arg miner "$miner" \
         --argjson busid "$busid_json" \
-        --argjson hr "$hr_json" \
+        --arg online "$online" \
+        --arg ver "$ver" \
     '{
-        miner: $miner,
-        algo: $algo,
+        $miner,
+        $algo,
         total_hr: "'"$totalHr"'",
-        busid: $busid,
-        hr: $hr
+        $busid,
+        $online,
+        $ver
     }'
 )
-
-online_raw=`ps -C $minername -o etimes= | awk '{print $1}' | tac | tail -n 1`
-if [[ ! -z $online_raw ]]; then
-  online=$(date --date "-$online_raw sec" +%s) #absolute time
-  data=`jq ". += {\"online\": $online}" <<< "$data"`
-fi
 
 echo "$data" | jq -c
