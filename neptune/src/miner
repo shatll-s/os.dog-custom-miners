@@ -33,7 +33,7 @@ $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
 echo "$batch"
 #./dr_neptune_prover --pool stratum+tcp://neptune.drpool.io:30127 -w drpoolaccount.xxx
-batch="./dr_neptune_prover --pool $POOL -w $TEMPLATE $args"
+batch="./dr_neptune_prover -p $POOL -w $TEMPLATE $args"
 #	unbuffer is needed to keep colors with tee
 unbuffer $batch 2>&1 | tee --append $LOG
 
