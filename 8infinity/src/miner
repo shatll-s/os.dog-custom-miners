@@ -81,6 +81,8 @@ conf+="\nINFINITY_WS=$infinity_ws"
 
 echo -e "$conf" > $CONFIG_FILE
 
+docker rm -f $MINERNAME > /dev/null 2>&1
+
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
 
