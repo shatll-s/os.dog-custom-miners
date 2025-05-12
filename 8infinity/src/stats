@@ -22,9 +22,8 @@
 #		"coin":"NEXA"
 #	}
 
-algo="tari"
+algo="8infinity"
 miner="glytex"
-minername="glytex"
 
 #	global variables, don`t change it
 ####################################################################################
@@ -35,7 +34,7 @@ CFG_FILENAME="miner.cfg"
 dirname=$(dirname "$0")
 . $dirname/$CFG_FILENAME
 
-LOG_FILE="/dog/log/tari-miner.log"
+#LOG_FILE="/dog/log/8infinity-miner.log"
 GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 
@@ -61,13 +60,13 @@ for (( i=0; i < gpuCount; i++ )); do
         hr_data[$i]=$rawHr
     fi
 done
-hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
-
-# calculate total_hr
-totalHr=0
-for hr in "${hr_data[@]}"; do
-    totalHr=$(echo "$totalHr + $hr" | bc)
-done
+#hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+#
+## calculate total_hr
+#totalHr=0
+#for hr in "${hr_data[@]}"; do
+#    totalHr=$(echo "$totalHr + $hr" | bc)
+#done
 
 data=$(
     jq -n \
@@ -84,9 +83,9 @@ data=$(
     }'
 )
 
-online_raw=`ps -C $minername -o etimes= | awk '{print $1}' | tac | tail -n 1`
+container_start_time=$(docker inspect --format='{{.State.StartedAt}}' "$MINERNAME")
 if [[ ! -z $online_raw ]]; then
-  online=$(date --date "-$online_raw sec" +%s) #absolute time
+  online=$(date -d "$start_time" +"%s")
   data=`jq ". += {\"online\": $online}" <<< "$data"`
 fi
 

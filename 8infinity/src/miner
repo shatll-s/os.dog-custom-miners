@@ -19,7 +19,7 @@ CFG_FILENAME="miner.cfg"
 ####################################################################################
 CONFIG_FILE=config.env
 LOG="/dog/log/8infinity-miner.log"
-
+DOCKER_IMAGE=otonashilabs/infinity-miner:latest
 #	custom package body
 ####################################################################################
 
@@ -29,16 +29,14 @@ LOG="/dog/log/8infinity-miner.log"
 ./install-docker.sh
 
 echo -e "${BROWN}> pulling docker image${WHITE}"
-docker pull otonashilabs/infinity-miner:latest
+docker pull $DOCKER_IMAGE
 echo -e "${GREEN}> pulling docker image completed${WHITE}"
+
+echo -e "${GREEN}>kill all docker container with image ${DOCKER_IMAGE}${WHITE}"
+docker ps -q --filter ancestor=$DOCKER_IMAGE | xargs -r docker rm -f
 
 # parse args
 parse_args() {
-    # Цвета
-    GREEN='\033[0;32m'
-    RED='\033[0;31m'
-    WHITE='\033[0m'
-
     local args="$1"
     shift
     local keys=("$@")
