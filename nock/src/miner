@@ -33,7 +33,7 @@ $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
 echo "$batch"
 
-batch="./nockchain -a $WALLET $args"
+batch="./nockchain --mining-pubkey $WALLET $args"
 #	unbuffer is needed to keep colors with tee
 #unbuffer $batch 2>&1 | tee --append $LOG
 $batch 2>&1
