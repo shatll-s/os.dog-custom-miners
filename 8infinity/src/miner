@@ -17,26 +17,59 @@ CFG_FILENAME="miner.cfg"
 
 #	custom package variables
 ####################################################################################
-MINER_DIR=files
-CONFIG_FILE=$MINER_DIR/.env
+CONFIG_FILE=config.env
 LOG="/dog/log/8infinity-miner.log"
-
+DOCKER_IMAGE=otonashilabs/infinity-miner:latest
 #	custom package body
 ####################################################################################
 
 #	this miner need many dependencies, so install script is placed in individual file
 #	if the miner is builded or you don`t need to install ton of dependecies, you can
 #	remove this string or install something right here
-./install.sh
+./install-docker.sh
 
-master_address=`echo $ADDITION | sed -e 's/.*--master-address //; s/ .*//'`
-master_pkey=`echo $ADDITION | sed -e 's/.*--master-pkey //; s/ .*//'`
+echo -e "${BROWN}> pulling docker image${WHITE}"
+docker pull $DOCKER_IMAGE
+echo -e "${GREEN}> pulling docker image completed${WHITE}"
 
-infinity_rpc=`echo $ADDITION | sed -e 's/.*--infinity_rpc //; s/ .*//'`
-infinity_ws=`echo $ADDITION | sed -e 's/.*--infinity_ws //; s/ .*//'`
-[[ ! $infinity_rpc ]] && infinity_rpc="https://rpc.blaze.soniclabs.com"
-[[ ! $infinity_ws ]] && infinity_ws="wss://rpc.blaze.soniclabs.com"
+echo -e "${GREEN}>kill all docker container with image ${DOCKER_IMAGE}${WHITE}"
+docker ps -q --filter ancestor=$DOCKER_IMAGE | xargs -r docker rm -f
 
+# parse args
+parse_args() {
+    local args="$1"
+    shift
+    local keys=("$@")
+
+    read -ra tokens <<< "$args"
+
+    for key in "${keys[@]}"; do
+        local value=""
+        for i in "${!tokens[@]}"; do
+            if [[ "${tokens[$i]}" == "--$key" ]]; then
+                value="${tokens[$((i+1))]}"
+                break
+            fi
+        done
+
+        local var_name="${key//-/_}"
+        if [ -n "$value" ]; then
+            printf -v "$var_name" '%s' "$value"
+            #echo -e "${GREEN}> $var_name = ${!var_name}${WHITE}"
+            echo -e "${GREEN}> args parsed: $var_name${WHITE}"
+        else
+            printf -v "$var_name" '%s' ""
+            echo -e "${RED}> args parsed: no value for $var_name${WHITE}"
+        fi
+
+        export "$var_name"
+    done
+}
+parse_args "$ADDITION" master-address master-pkey infinity_rpc infinity_ws
+[ -z "$infinity_rpc" ] && infinity_rpc="https://rpc.blaze.soniclabs.com"
+[ -z "$infinity_ws" ] && infinity_ws="wss://rpc.blaze.soniclabs.com"
+
+# create config
 conf="REWARDS_RECIPIENT_ADDRESS=$WALLET"
 conf+="\nMASTER_ADDRESS=$master_address"
 conf+="\nMASTER_PKEY=$master_pkey"
@@ -46,14 +79,11 @@ conf+="\nINFINITY_WS=$infinity_ws"
 
 echo -e "$conf" > $CONFIG_FILE
 
-##	default values for miner
-#[[ "$ADDITION" != *"--givers"* ]] && args+=" --givers 1000"
-#[[ "$ADDITION" != *"--api"* ]] && args+=" --api tonhub"
-#[[ "$ADDITION" != *"--gpu-count"* ]] && args+=" --gpu-count $(gpu-detect NVIDIA)"
+docker rm -f $MINERNAME > /dev/null 2>&1
 
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
-batch="python3 files/mine_infinity.py"
-#	unbuffer is needed to keep colors with tee
-unbuffer $batch 2>&1 | tee --append $LOG
 
+# exec it needed to change main process from shell to unbuffer + docker
+#	unbuffer is needed to keep colors with tee
+exec unbuffer docker run --gpus all --rm -it --name $MINERNAME -v ./$CONFIG_FILE:/app/.env otonashilabs/infinity-miner:latest python3 mine_infinity.py 2>&1 | tee --append "$LOG"
