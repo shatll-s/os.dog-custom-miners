@@ -36,5 +36,7 @@ echo "$batch"
 batch="./nockchain $args"
 #	unbuffer is needed to keep colors with tee
 #unbuffer $batch 2>&1 | tee --append $LOG
+
+rm -rf .socket
 $batch 2>&1
 
