@@ -22,6 +22,29 @@
 #		"coin":"NEXA"
 #	}
 
+convert_hashrate_to_hps() {
+  local raw_hashrate="$1"  # Пример: "668.92 MH/s"
+
+  # Разделяем на значение и единицу
+  local value=$(echo "$raw_hashrate" | awk '{print $1}')
+  local unit=$(echo "$raw_hashrate" | awk '{print $2}')
+
+  # Определяем множитель
+  local multiplier
+  case "$unit" in
+    H/s)   multiplier=1 ;;
+    kH/s)  multiplier=1000 ;;
+    MH/s)  multiplier=1000000 ;;
+    GH/s)  multiplier=1000000000 ;;
+    TH/s)  multiplier=1000000000000 ;;
+    *)     echo "Ошибка: неизвестная единица '$unit'" >&2; return 1 ;;
+  esac
+
+  # Вычисляем H/s
+  local result=$(printf "%.0f" "$(echo "$value * $multiplier" | bc -l)")
+  echo "$result"
+}
+
 algo="8infinity"
 miner="8infinity"
 #	global variables, don`t change it
@@ -30,10 +53,33 @@ miner="8infinity"
 #	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
 CFG_FILENAME="miner.cfg"
 
-dirname=$(dirname "$0")
+dirname=$(dirname "$(realpath "$0")")
 . $dirname/$CFG_FILENAME
 
-#LOG_FILE="/dog/log/8infinity-miner.log"
+ver=$(basename "$dirname" | sed -E 's/.*-([0-9]+\.[0-9]+)$/\1/')
+LOG_FILE="/dog/log/8infinity-miner.log"
+maxFreshness=60
+
+lastStats=`awk '/\| STATS/ {block=""; capture=1} capture {block = block $0 ORS} /\| $/ && capture {capture=0; out=block} END {print out}' "$LOG_FILE"`
+logTimeString=$(echo "$lastStats" | grep -m1 -oP '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
+
+logTimestamp=$(date -d "$logTimeString" +%s)
+nowTimestamp=$(date +%s)
+delta=$((nowTimestamp - logTimestamp))
+if (( delta > maxFreshness )); then
+  exit 1
+fi
+
+balance=$(echo "$lastStats" | grep 'native balance:' | awk -F': ' '{print $2}')
+mined=$(echo "$lastStats" | grep 'mined tokens:' | awk -F': ' '{print $2}')
+
+if [[ -n "$balance" && -n "$mined" ]]; then
+  ver="$ver | balance: $balance | mined: $mined"
+fi
+
+raw_total_hr=$(echo "$lastStats" | grep 'hashrate:' | awk -F': ' '{print $2}')
+total_hr=$(convert_hashrate_to_hps "$raw_total_hr")
+
 GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 
@@ -47,9 +93,7 @@ done
 
 for (( i=0; i < gpuCount; i++ )); do
     busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
-
     busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
-
 done
 
 hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
@@ -60,23 +104,26 @@ hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
 #    totalHr=$(echo "$totalHr + $hr" | bc)
 #done
 
+online=`ps -eo lstart,pid,cmd | grep 'unbuffer python3 files/src/main.py' | grep -v grep | awk '{$6=""; $7=""; $8=""; print $0}' | cut -d ' ' -f1-5 | xargs -I{} date -d "{}" +%s`
+
 data=$(
     jq -n \
         --arg algo "$algo" \
         --arg miner "$miner" \
+        --arg total_hr "$total_hr" \
+        --arg online "$online" \
+        --arg ver "$ver" \
         --argjson busid "$busid_json" \
         --argjson hr "$hr_json" \
     '{
         miner: $miner,
         algo: $algo,
         busid: $busid,
-        hr: $hr
+        hr: $hr,
+        $total_hr,
+        $online,
+        $ver
     }'
 )
-container_start_time=$(docker inspect --format='{{.State.StartedAt}}' "$MINERNAME")
-if [[ ! -z $container_start_time ]]; then
-  online=$(date -d "$container_start_time" +"%s")
-  data=`jq ". += {\"online\": $online}" <<< "$data"`
-fi
 
 echo "$data" | jq -c
