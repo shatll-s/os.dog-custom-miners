@@ -19,16 +19,21 @@ CFG_FILENAME="miner.cfg"
 ####################################################################################
 CONFIG_FILE=config.env
 LOG="/dog/log/8infinity-miner.log"
-GIT_REPO=otonashilabs/infinity-miner:latest
-GIT_DIR=files
+DOCKER_IMAGE=otonashilabs/infinity-miner:latest
 #	custom package body
 ####################################################################################
 
-# install part
-apt-get install -yqq python3 python3-pip git
-git clone $GIT_REPO.git $GIT_DIR
-pip3 install -r $GIT_DIR/requirements.txt
+#	this miner need many dependencies, so install script is placed in individual file
+#	if the miner is builded or you don`t need to install ton of dependecies, you can
+#	remove this string or install something right here
+./install-docker.sh
 
+echo -e "${BROWN}> pulling docker image${WHITE}"
+docker pull $DOCKER_IMAGE
+echo -e "${GREEN}> pulling docker image completed${WHITE}"
+
+echo -e "${GREEN}>kill all docker container with image ${DOCKER_IMAGE}${WHITE}"
+docker ps -q --filter ancestor=$DOCKER_IMAGE | xargs -r docker rm -f
 
 # parse args
 parse_args() {
@@ -64,16 +69,21 @@ parse_args "$ADDITION" master-address master-pkey infinity_rpc infinity_ws
 [ -z "$infinity_rpc" ] && infinity_rpc="https://rpc.blaze.soniclabs.com"
 [ -z "$infinity_ws" ] && infinity_ws="wss://rpc.blaze.soniclabs.com"
 
+# create config
+conf="REWARDS_RECIPIENT_ADDRESS=$WALLET"
+conf+="\nMASTER_ADDRESS=$master_address"
+conf+="\nMASTER_PKEY=$master_pkey"
+
+conf+="\nINFINITY_RPC=$infinity_rpc"
+conf+="\nINFINITY_WS=$infinity_ws"
+
+echo -e "$conf" > $CONFIG_FILE
+
+docker rm -f $MINERNAME > /dev/null 2>&1
+
 $LINE
-echo -e "${GREEN}> Starting custom miner:${WHITE}"
+echo -e "${GREEN}> Starting custom miner${WHITE}"
 
-INFINITY_REWARDS_RECIPIENT_ADDRESS=$WALLET
-INFINITY_MINER_PRIVATE_KEY=$master_pkey
-INFINITY_RPC=$infinity_rpc
-INFINITY_WS=$infinity_ws python3 src/main.py
-
-batch="python3 $GIT_DIR/src/main.py"
-echo -e "$batch"
-
+# exec it needed to change main process from shell to unbuffer + docker
 #	unbuffer is needed to keep colors with tee
-unbuffer $batch 2>&1 | tee --append $LOG
+exec unbuffer docker run --gpus all --rm -it --name $MINERNAME -v ./$CONFIG_FILE:/app/.env otonashilabs/infinity-miner:latest python3 mine_infinity.py 2>&1 | tee --append "$LOG"
