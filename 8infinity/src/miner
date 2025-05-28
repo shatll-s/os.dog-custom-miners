@@ -67,12 +67,12 @@ parse_args "$ADDITION" master-address master-pkey infinity_rpc infinity_ws
 $LINE
 echo -e "${GREEN}> Starting custom miner:${WHITE}"
 
-INFINITY_REWARDS_RECIPIENT_ADDRESS=$WALLET
-INFINITY_MINER_PRIVATE_KEY=$master_pkey
-INFINITY_RPC=$infinity_rpc
-INFINITY_WS=$infinity_ws python3 src/main.py
-
-batch="python3 $GIT_DIR/src/main.py"
+batch=
+batch+="INFINITY_REWARDS_RECIPIENT_ADDRESS=$WALLET"
+batch+="INFINITY_MINER_PRIVATE_KEY=$master_pkey"
+batch+="INFINITY_RPC=$infinity_rpc"
+batch+="INFINITY_WS=$infinity_ws"
+batch+="python3 $GIT_DIR/src/main.py"
 echo -e "$batch"
 
 #	unbuffer is needed to keep colors with tee
