@@ -69,10 +69,10 @@ echo -e "${GREEN}> Starting custom miner:${WHITE}"
 
 batch=
 batch+="INFINITY_REWARDS_RECIPIENT_ADDRESS=$WALLET"
-batch+="INFINITY_MINER_PRIVATE_KEY=$master_pkey"
-batch+="INFINITY_RPC=$infinity_rpc"
-batch+="INFINITY_WS=$infinity_ws"
-batch+="python3 $GIT_DIR/src/main.py"
+batch+=" INFINITY_MINER_PRIVATE_KEY=$master_pkey"
+batch+=" INFINITY_RPC=$infinity_rpc"
+batch+=" INFINITY_WS=$infinity_ws"
+batch+=" python3 $GIT_DIR/src/main.py"
 echo -e "$batch"
 
 #	unbuffer is needed to keep colors with tee
