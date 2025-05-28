@@ -19,7 +19,7 @@ CFG_FILENAME="miner.cfg"
 ####################################################################################
 CONFIG_FILE=config.env
 LOG="/dog/log/8infinity-miner.log"
-GIT_REPO=otonashilabs/infinity-miner:latest
+GIT_REPO=https://github.com/shatll-s/8infinity-miner
 GIT_DIR=files
 #	custom package body
 ####################################################################################
