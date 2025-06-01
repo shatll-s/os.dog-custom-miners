@@ -24,11 +24,10 @@ GIT_DIR=files
 #	custom package body
 ####################################################################################
 
-# install part
-apt-get install -yqq python3 python3-pip git
-git clone $GIT_REPO.git $GIT_DIR
-pip3 install -r $GIT_DIR/requirements.txt
+# install section
+./install.sh
 
+# install section end
 
 # parse args
 parse_args() {
@@ -60,7 +59,7 @@ parse_args() {
         export "$var_name"
     done
 }
-parse_args "$ADDITION" master-address master-pkey infinity_rpc infinity_ws
+parse_args "$ADDITION" master-pkey infinity_rpc infinity_ws
 [ -z "$infinity_rpc" ] && infinity_rpc="https://rpc.blaze.soniclabs.com"
 [ -z "$infinity_ws" ] && infinity_ws="wss://rpc.blaze.soniclabs.com"
 
@@ -73,7 +72,7 @@ export INFINITY_MINER_PRIVATE_KEY=$master_pkey
 export INFINITY_RPC=$infinity_rpc
 export INFINITY_WS=$infinity_ws
 
-batch="python3 $GIT_DIR/src/main.py"
+batch="python3.10 $GIT_DIR/src/main.py"
 
 echo -e "$batch"
 
