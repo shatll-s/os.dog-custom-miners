@@ -33,7 +33,7 @@ $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
 echo "$batch"
 
-batch="./OrionClient mine -p $POOL -w $TEMPLATE $args"
+batch="./OrionClient mine --pool $POOL --key $TEMPLATE $args"
 #	unbuffer is needed to keep colors with tee
 unbuffer $batch 2>&1 | tee --append $LOG
 
