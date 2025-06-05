@@ -28,12 +28,13 @@ LOG="/dog/log/orion.log"
 #./install.sh
 
 args=$ADDITION
+batch="./OrionClient mine --pool $POOL --key $TEMPLATE $args"
 
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
 echo "$batch"
 
-batch="./OrionClient mine --pool $POOL --key $TEMPLATE $args"
 #	unbuffer is needed to keep colors with tee
-unbuffer $batch 2>&1 | tee --append $LOG
-
+#unbuffer $batch 2>&1 | tee --append $LOG
+$batch 2>&1 | tee --append $LOG
+echo "> Miner exited"
