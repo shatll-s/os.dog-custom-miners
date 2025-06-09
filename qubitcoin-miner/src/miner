@@ -70,8 +70,9 @@ MY_PID=$$
 for ((i = 0; i < nvidiaCount; i++)); do
   echo "> GPU $i"
   screenName="qubitcoin-miner$i"
+  apiPort="4444$i"
   log="/dog/log/qubitcoin-miner$i.log"
-  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner --algo qhash --url $POOL --coinbase-addr $WALLET --userpass $PASS $ADDITION"
+  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner --algo qhash --url $POOL --coinbase-addr $WALLET --userpass $PASS $ADDITION --api-bind $apiPort"
 
   fullBatch=$(cat <<EOF
 (
