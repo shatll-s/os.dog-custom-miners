@@ -68,18 +68,21 @@ nvidiaCount=`gpu-detect nvidia`
 
 for ((i = 0; i < nvidiaCount; i++)); do
   echo "> GPU $i"
+  screenName="qubitcoin-miner$i"
 
-  (
-    # Страж, следит за родителем
-    while kill -0 $PPID 2>/dev/null; do sleep 1; done
-    echo "Miner $i: parent is gone, exiting"
-    kill $$
-  ) &
-
-  CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner $ADDITION &
+  screen-kill $screenName
+  screen -dmS $screenName bash -c "CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner $ADDITION"
 done
 
 echo -e "$batch"
 
 #	unbuffer is needed to keep colors with tee
 unbuffer $batch 2>&1 | tee --append $LOG
+
+
+#  (
+#    # Страж, следит за родителем
+#    while kill -0 $PPID 2>/dev/null; do sleep 1; done
+#    echo "Miner $i: parent is gone, exiting"
+#    kill $$
+#  ) &
