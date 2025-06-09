@@ -34,7 +34,7 @@ apt update
 
 echo "[*] Установка библиотек CUDA (включая libcublas.so.12)"
 #apt install -y cuda-libraries-12-4
-apt install -y libcublas-12-0
+apt install -y libcublas-12-4 cuda-libraries-12-4
 
 echo "[*] Проверка установки libcublas.so.12"
 if ldconfig -p | grep -q libcublas.so.12; then
