@@ -57,22 +57,29 @@ parse_args() {
         export "$var_name"
     done
 }
-#parse_args "$ADDITION" master-pkey infinity_rpc infinity_ws
-#[ -z "$infinity_rpc" ] && infinity_rpc="https://rpc.blaze.soniclabs.com"
-#[ -z "$infinity_ws" ] && infinity_ws="wss://rpc.blaze.soniclabs.com"
+parse_args "$ADDITION" reserved_cores
+[ -z "$reserved_cores" ] && reserved_cores=2
 
 $LINE
 echo -e "${GREEN}> Starting custom miner:${WHITE}"
 
 nvidiaCount=$(gpu-detect nvidia)
 MY_PID=$$
+total_cores=$(nproc)
+usable_cores=$((total_cores - reserved_cores))
+base_threads=$((usable_cores / nvidiaCount))
+extra_threads=$((usable_cores % nvidiaCount))
 
 for ((i = 0; i < nvidiaCount; i++)); do
-  echo "> GPU $i"
+  threads=$base_threads
+  if (( i < extra_threads )); then
+    threads=$((threads + 1))
+  fi
+  echo "> GPU $i → -t $threads"
   screenName="qubitcoin-miner$i"
   apiPort="4444$i"
   log="/dog/log/qubitcoin-miner$i.log"
-  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner --algo qhash --url $POOL --coinbase-addr $WALLET --userpass $PASS $ADDITION --api-bind $apiPort"
+  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner --algo qhash --url $POOL --coinbase-addr $WALLET --userpass $PASS $ADDITION -t $threads --api-bind $apiPort"
 
   fullBatch=$(cat <<EOF
 (
