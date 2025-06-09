@@ -21,7 +21,7 @@ if [[ $(NeedToInstall libc6 "2.32") -eq 1 ]]; then
 	echo -e "> Install libc6"
 	echo "deb http://cz.archive.ubuntu.com/ubuntu jammy main" >> /etc/apt/sources.list
 	apt update
-	apt install libc6 -yqq
+	apt install libc6 -yqq --no-install-recommends
 else
 	echo -e "${GREEN}> libc6 already installed${WHITE}"
 fi
