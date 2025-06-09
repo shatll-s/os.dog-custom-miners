@@ -71,7 +71,7 @@ for ((i = 0; i < nvidiaCount; i++)); do
   echo "> GPU $i"
   screenName="qubitcoin-miner$i"
   log="/dog/log/qubitcoin-miner$i.log"
-  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner $ADDITION"
+  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner --algo qhash --url $POOL --coinbase-addr $WALLET --userpass $PASS $ADDITION"
 
   fullBatch=$(cat <<EOF
 (
@@ -79,7 +79,7 @@ for ((i = 0; i < nvidiaCount; i++)); do
     echo "GPU $i: parent died, shutting down miner..."
     kill \$\$ ) &
 
-  $batch 2>&1 | tee -a $log
+  whilte true; do $batch 2>&1 | tee -a $log; done
 )
 EOF
 )
