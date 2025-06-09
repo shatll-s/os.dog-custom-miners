@@ -69,15 +69,16 @@ nvidiaCount=`gpu-detect nvidia`
 for ((i = 0; i < nvidiaCount; i++)); do
   echo "> GPU $i"
   screenName="qubitcoin-miner$i"
-
+  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner $ADDITION"
+  echo -e "$batch"
   screen-kill $screenName
-  screen -dmS $screenName bash -c "CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner $ADDITION"
+  screen -dmS $screenName bash -c "$batch"
 done
 
-echo -e "$batch"
+
 
 #	unbuffer is needed to keep colors with tee
-unbuffer $batch 2>&1 | tee --append $LOG
+#unbuffer $batch 2>&1 | tee --append $LOG
 
 
 #  (
