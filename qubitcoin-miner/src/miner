@@ -1,0 +1,85 @@
+#!/bin/bash
+####################################################################################
+###
+### qubitcoin miner
+### os.dog integration: @osdog
+###
+####################################################################################
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+CONFIG_FILE=config.env
+LOG="/dog/log/qubitcoin-miner.log"
+#	custom package body
+####################################################################################
+
+# install section
+#./install.sh
+
+# install section end
+
+# parse args
+parse_args() {
+    local args="$1"
+    shift
+    local keys=("$@")
+
+    read -ra tokens <<< "$args"
+
+    for key in "${keys[@]}"; do
+        local value=""
+        for i in "${!tokens[@]}"; do
+            if [[ "${tokens[$i]}" == "--$key" ]]; then
+                value="${tokens[$((i+1))]}"
+                break
+            fi
+        done
+
+        local var_name="${key//-/_}"
+        if [ -n "$value" ]; then
+            printf -v "$var_name" '%s' "$value"
+            #echo -e "${GREEN}> $var_name = ${!var_name}${WHITE}"
+            echo -e "${GREEN}> args parsed: $var_name${WHITE}"
+        else
+            printf -v "$var_name" '%s' ""
+            echo -e "${RED}> args parsed: no value for $var_name${WHITE}"
+        fi
+
+        export "$var_name"
+    done
+}
+parse_args "$ADDITION" master-pkey infinity_rpc infinity_ws
+#[ -z "$infinity_rpc" ] && infinity_rpc="https://rpc.blaze.soniclabs.com"
+#[ -z "$infinity_ws" ] && infinity_ws="wss://rpc.blaze.soniclabs.com"
+
+$LINE
+echo -e "${GREEN}> Starting custom miner:${WHITE}"
+
+nvidiaCount=`gpu-detect nvidia`
+
+for ((i = 0; i < nvidiaCount; i++)); do
+  echo "> GPU $i"
+
+  (
+    # Страж, следит за родителем
+    while kill -0 $PPID 2>/dev/null; do sleep 1; done
+    echo "Miner $i: parent is gone, exiting"
+    kill $$
+  ) &
+
+  CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner $ADDITION &
+done
+
+echo -e "$batch"
+
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
