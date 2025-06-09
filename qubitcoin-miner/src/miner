@@ -79,7 +79,7 @@ for ((i = 0; i < nvidiaCount; i++)); do
     echo "GPU $i: parent died, shutting down miner..."
     kill \$\$ ) &
 
-  whilte true; do $batch 2>&1 | tee -a $log; done
+  while true; do $batch 2>&1 | tee -a $log; done
 )
 EOF
 )
