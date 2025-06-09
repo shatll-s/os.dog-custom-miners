@@ -87,7 +87,7 @@ EOF
 
   echo -e "$batch"
   screen-kill $screenName
-  screen -dmS $screenName bash -c "$batch"
+  screen -dmS $screenName bash -c "fullBatch"
 done
 
 # for infinity
