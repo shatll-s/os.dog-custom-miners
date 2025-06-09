@@ -65,16 +65,33 @@ $LINE
 echo -e "${GREEN}> Starting custom miner:${WHITE}"
 
 nvidiaCount=`gpu-detect nvidia`
+MY_PID=$$  # PID скрипта, который запускает майнеров
 
 for ((i = 0; i < nvidiaCount; i++)); do
   echo "> GPU $i"
   screenName="qubitcoin-miner$i"
   batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner $ADDITION"
+
+  fullBatch=$(cat <<EOF
+  (
+    # Страж следит за $MY_PID (текущий скрипт)
+    ( while kill -0 $MY_PID 2>/dev/null; do sleep 1; done
+      echo "GPU $i: parent died, shutting down miner..."
+      kill \$\$ ) &
+
+    # Запуск майнера
+    $batch
+  )
+EOF
+  )
+
   echo -e "$batch"
   screen-kill $screenName
   screen -dmS $screenName bash -c "$batch"
 done
 
+# for infinity
+tail -f /dev/null
 
 
 #	unbuffer is needed to keep colors with tee
