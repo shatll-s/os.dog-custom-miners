@@ -75,6 +75,9 @@ for ((i = 0; i < nvidiaCount; i++)); do
   if (( i < extra_threads )); then
     threads=$((threads + 1))
   fi
+  if (( threads < 1 )); then
+    threads=1
+  fi
   echo "> GPU $i → -t $threads"
   screenName="qubitcoin-miner$i"
   apiPort="4444$i"
