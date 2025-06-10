@@ -47,10 +47,10 @@ parse_args() {
 
                 if [ -n "$value" ]; then
                     printf -v "$var_name" '%s' "$value"
-                    echo -e "${GREEN}> args parsed: $var_name${WHITE}"
+#                    echo -e "${GREEN}> args parsed: $var_name${WHITE}"
                 else
                     printf -v "$var_name" '%s' ""
-                    echo -e "${RED}> args parsed: no value for $var_name${WHITE}"
+#                    echo -e "${RED}> args parsed: no value for $var_name${WHITE}"
                 fi
 
                 export "$var_name"
