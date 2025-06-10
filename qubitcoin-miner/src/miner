@@ -42,34 +42,36 @@ parse_args() {
 
         for key in "${keys[@]}"; do
             if [[ "$token" == "--$key" ]]; then
-                local value="${tokens[$((i+1))]}"
                 local var_name="${key//-/_}"
 
-                if [ -n "$value" ]; then
-                    # assign + export in one go, без shellcheck-ворнингов
-                    declare -x "${var_name}"="$value"
-                    echo -e "${GREEN}> args parsed: $var_name = ${!var_name}${WHITE}"
+                if (( i + 1 < ${#tokens[@]} )); then
+                    local value="${tokens[$((i+1))]}"
+                    export "${var_name}=$value"
                 else
-                    declare -x "${var_name}"=""
-                    echo -e "${RED}> args parsed: no value for $var_name${WHITE}"
+                    export "${var_name}="
                 fi
 
-                ((i++))    # пропускаем значение
+                ((i++))    # пропустить значение
                 is_key=1
                 break
             fi
         done
 
         if [[ $is_key -eq 0 ]]; then
-            filtered+=("$token")
+            filtered+=("${token}")
         fi
     done
 
-    # возвращаем строку “обрезанных” аргументов
     echo "${filtered[*]}"
 }
 
-remainingAddition=$(parse_args "$ADDITION" reserved_cores gpu_count)
+echo "> additional args: $ADDITION"
+parse_args "$ADDITION" reserved_cores gpu_count
+remainingAddition="${REPLY}"
+
+echo "> remaining args: $remainingAddition"
+echo "> using ${gpu_count} gpus"
+
 [ -z "$reserved_cores" ] && reserved_cores=2
 [ -z "$gpu_count" ] && gpu_count=$(gpu-detect nvidia)
 
@@ -81,7 +83,7 @@ total_cores=$(nproc)
 usable_cores=$((total_cores - reserved_cores))
 base_threads=$((usable_cores / gpu_count))
 extra_threads=$((usable_cores % gpu_count))
-
+echo "> using ${gpu_count} gpus"
 for ((i = 0; i < gpu_count; i++)); do
   threads=$base_threads
   if (( i < extra_threads )); then
