@@ -46,15 +46,15 @@ parse_args() {
                 local var_name="${key//-/_}"
 
                 if [ -n "$value" ]; then
-                    printf -v "$var_name" '%s' "$value"
-#                    echo -e "${GREEN}> args parsed: $var_name${WHITE}"
+                    # assign + export in one go, без shellcheck-ворнингов
+                    declare -x "${var_name}"="$value"
+                    echo -e "${GREEN}> args parsed: $var_name = ${!var_name}${WHITE}"
                 else
-                    printf -v "$var_name" '%s' ""
-#                    echo -e "${RED}> args parsed: no value for $var_name${WHITE}"
+                    declare -x "${var_name}"=""
+                    echo -e "${RED}> args parsed: no value for $var_name${WHITE}"
                 fi
 
-                export "$var_name"
-                ((i++))  # пропустить значение
+                ((i++))    # пропускаем значение
                 is_key=1
                 break
             fi
@@ -65,7 +65,7 @@ parse_args() {
         fi
     done
 
-    # Возвращаем оставшиеся аргументы
+    # возвращаем строку “обрезанных” аргументов
     echo "${filtered[*]}"
 }
 
