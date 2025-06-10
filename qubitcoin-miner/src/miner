@@ -34,32 +34,44 @@ parse_args() {
     local keys=("$@")
 
     read -ra tokens <<< "$args"
+    local filtered=()
 
-    for key in "${keys[@]}"; do
-        local value=""
-        for i in "${!tokens[@]}"; do
-            if [[ "${tokens[$i]}" == "--$key" ]]; then
-                value="${tokens[$((i+1))]}"
+    for ((i = 0; i < ${#tokens[@]}; i++)); do
+        local token="${tokens[i]}"
+        local is_key=0
+
+        for key in "${keys[@]}"; do
+            if [[ "$token" == "--$key" ]]; then
+                local value="${tokens[$((i+1))]}"
+                local var_name="${key//-/_}"
+
+                if [ -n "$value" ]; then
+                    printf -v "$var_name" '%s' "$value"
+                    echo -e "${GREEN}> args parsed: $var_name${WHITE}"
+                else
+                    printf -v "$var_name" '%s' ""
+                    echo -e "${RED}> args parsed: no value for $var_name${WHITE}"
+                fi
+
+                export "$var_name"
+                ((i++))  # пропустить значение
+                is_key=1
                 break
             fi
         done
 
-        local var_name="${key//-/_}"
-        if [ -n "$value" ]; then
-            printf -v "$var_name" '%s' "$value"
-            #echo -e "${GREEN}> $var_name = ${!var_name}${WHITE}"
-            echo -e "${GREEN}> args parsed: $var_name${WHITE}"
-        else
-            printf -v "$var_name" '%s' ""
-            echo -e "${RED}> args parsed: no value for $var_name${WHITE}"
+        if [[ $is_key -eq 0 ]]; then
+            filtered+=("$token")
         fi
-
-        export "$var_name"
     done
+
+    # Возвращаем оставшиеся аргументы
+    echo "${filtered[*]}"
 }
-parse_args "$ADDITION" reserved_cores gpu_count
+
+remainingAddition=$(parse_args "$ADDITION" reserved_cores gpu_count)
 [ -z "$reserved_cores" ] && reserved_cores=2
-[ -z "$reserved_cores" ] && gpu_count=$(gpu-detect nvidia)
+[ -z "$gpu_count" ] && gpu_count=$(gpu-detect nvidia)
 
 $LINE
 echo -e "${GREEN}> Starting custom miner:${WHITE}"
@@ -82,7 +94,7 @@ for ((i = 0; i < gpu_count; i++)); do
   screenName="qubitcoin-miner$i"
   apiPort="4444$i"
   log="/dog/log/qubitcoin-miner$i.log"
-  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner --algo qhash --url $POOL --coinbase-addr $WALLET --userpass $PASS $ADDITION -t $threads --api-bind $apiPort"
+  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner --algo qhash --url $POOL --coinbase-addr $WALLET --userpass $PASS -t $threads --api-bind $apiPort $remainingAddition"
 
   fullBatch=$(cat <<EOF
 (
