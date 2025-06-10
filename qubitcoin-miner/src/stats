@@ -58,6 +58,7 @@ for (( i=0; i < gpuCount; i++ )); do
 
     apiPort="4444$i"
     stats_template=`echo "summary" | nc -w $API_TIMEOUT localhost $apiPort | tr -d '\0'`
+    [[ -z $stats_template ]] && continue
     HS=$(echo "$stats_template" | grep -oP '(^|;)HS=\K[^;]*')
     ACC=$(echo "$stats_template" | grep -oP 'ACC=\K[^;]*')
     REJ=$(echo "$stats_template" | grep -oP 'REJ=\K[^;]*')
