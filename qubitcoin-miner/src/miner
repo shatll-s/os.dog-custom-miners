@@ -57,20 +57,20 @@ parse_args() {
         export "$var_name"
     done
 }
-parse_args "$ADDITION" reserved_cores
+parse_args "$ADDITION" reserved_cores gpu_count
 [ -z "$reserved_cores" ] && reserved_cores=2
+[ -z "$reserved_cores" ] && gpu_count=$(gpu-detect nvidia)
 
 $LINE
 echo -e "${GREEN}> Starting custom miner:${WHITE}"
 
-nvidiaCount=$(gpu-detect nvidia)
 MY_PID=$$
 total_cores=$(nproc)
 usable_cores=$((total_cores - reserved_cores))
-base_threads=$((usable_cores / nvidiaCount))
-extra_threads=$((usable_cores % nvidiaCount))
+base_threads=$((usable_cores / gpu_count))
+extra_threads=$((usable_cores % gpu_count))
 
-for ((i = 0; i < nvidiaCount; i++)); do
+for ((i = 0; i < gpu_count; i++)); do
   threads=$base_threads
   if (( i < extra_threads )); then
     threads=$((threads + 1))
