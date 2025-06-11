@@ -62,6 +62,7 @@ parse_args() {
         fi
     done
 
+
     echo "${filtered[*]}"
 }
 

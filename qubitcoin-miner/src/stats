@@ -52,13 +52,20 @@ done
 API_TIMEOUT=2
 
 for (( i=0; i < gpuCount; i++ )); do
+    apiPort="4444$i"
+    stats_template=`echo "summary" | nc -w $API_TIMEOUT localhost $apiPort | tr -d '\0'`
+    if [[ -z $stats_template ]]; then
+      unset 'hr_data[i]'
+      unset 'acc_data[i]'
+      unset 'rej_data[i]'
+      continue
+    fi
+
     busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
 
     busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
 
-    apiPort="4444$i"
-    stats_template=`echo "summary" | nc -w $API_TIMEOUT localhost $apiPort | tr -d '\0'`
-    [[ -z $stats_template ]] && continue
+
     HS=$(echo "$stats_template" | grep -oP '(^|;)HS=\K[^;]*')
     ACC=$(echo "$stats_template" | grep -oP 'ACC=\K[^;]*')
     REJ=$(echo "$stats_template" | grep -oP 'REJ=\K[^;]*')
