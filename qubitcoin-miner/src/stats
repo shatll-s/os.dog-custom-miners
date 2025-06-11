@@ -51,6 +51,8 @@ done
 
 API_TIMEOUT=2
 
+miner_online_raw=
+
 for (( i=0; i < gpuCount; i++ )); do
     apiPort="4444$i"
     stats_template=`echo "summary" | nc -w $API_TIMEOUT localhost $apiPort | tr -d '\0'`
@@ -61,6 +63,7 @@ for (( i=0; i < gpuCount; i++ )); do
       continue
     fi
 
+    [[ -z $miner_online_raw ]] && miner_online_raw=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/'`
     busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
 
     busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
@@ -81,7 +84,6 @@ for (( i=0; i < gpuCount; i++ )); do
     fi
 done
 
-miner_online_raw=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/'`
 
 hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
 acc_json=$(printf '%s\n' "${acc_data[@]}" | jq -R . | jq -s .)
