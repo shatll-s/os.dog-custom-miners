@@ -70,7 +70,7 @@ echo "> additional args: $ADDITION"
 parse_args "$ADDITION"
 remainingAddition="${REPLY}"
 echo "> remaining args: $remainingAddition"
-batch="./qubitcoin-miner --url $POOL --coinbase-addr $WALLET --userpass $PASS -t $threads --api-bind $API_PORT $remainingAddition"
+batch="./qubitcoin-miner --url $POOL --coinbase-addr $WALLET --userpass $PASS --api-bind $API_PORT $remainingAddition"
 
 $LINE
 echo -e "${GREEN}> Starting custom miner:${WHITE}"
