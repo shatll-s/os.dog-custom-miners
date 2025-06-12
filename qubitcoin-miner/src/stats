@@ -22,7 +22,6 @@
 #		"coin":"NEXA"
 #	}
 
-algo="qhash"
 miner="qubitcoin-miner"
 
 #	global variables, don`t change it
@@ -47,9 +46,7 @@ done
 
 API_TIMEOUT=2
 
-miner_online_raw=
-
-state_template=`echo "summary" | nc -w $API_TIMEOUT localhost $API_PORT | tr -d '\0'`
+stats_template=`echo "summary" | nc -w $API_TIMEOUT localhost $API_PORT | tr -d '\0'`
 threads=`echo "threads" | nc -w $API_TIMEOUT localhost $API_PORT | tr -d '\0'`
 cpuarr=`echo "$threads" | sed -e 's/|/\n/g; s/;/\n/g'`
 rawMinerHr=(`echo "$cpuarr" | grep 'H/s='`)
@@ -68,54 +65,33 @@ done
 
 totalAcc=$(echo "$stats_template" | grep -oP 'ACC=\K[^;]*')
 totalRej=$(echo "$stats_template" | grep -oP 'REJ=\K[^;]*')
+algo=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*ALGO=\([a-zA-Z0-9.]*\)\n.*/\1/'`
+miner_online_raw=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/'`
+online=$(date --date "-$miner_online_raw sec" +%s)
 
 #
-#for (( i=0; i < gpuCount; i++ )); do
-#    apiPort="4444$i"
-#    stats_template=`echo "summary" | nc -w $API_TIMEOUT localhost $apiPort | tr -d '\0'`
-#    if [[ -z $stats_template ]]; then
-#      unset 'acc_data[i]'
-#      unset 'rej_data[i]'
-#      continue
-#    fi
-#
-#    [[ -z $miner_online_raw ]] && miner_online_raw=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/'`
-#    busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
-#
-#    busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
-#
-#
-#    ACC=$(echo "$stats_template" | grep -oP 'ACC=\K[^;]*')
-#    REJ=$(echo "$stats_template" | grep -oP 'REJ=\K[^;]*')
-#
-#    if (( $(echo "$ACC > 0" | bc -l) )); then
-#        acc_data[$i]=$ACC
-#    fi
-#    if (( $(echo "$REJ > 0" | bc -l) )); then
-#        rej_data[$i]=$REJ
-#    fi
-#done
+for (( i=0; i < gpuCount; i++ )); do
+    busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
+    busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
+done
 
 data=$(
     jq -n \
-        --arg algo "$algo" \
         --arg miner "$miner" \
+        --arg algo "$algo" \
+        --arg online "$online" \
         --argjson busid "$busid_json" \
         --argjson hr "$hr_json" \
     '{
         miner: $miner,
         algo: $algo,
-        total_hr: "'"$totalHr"'",
+        online: $online,
+        total_hr: "'"$total_hr"'",
         total_share: "'"$totalAcc"'",
         total_badshare: "'"$totalRej"'",
         busid: $busid,
         hr: $hr
     }'
 )
-
-if [[ ! -z $miner_online_raw ]]; then
-  online=$(date --date "-$miner_online_raw sec" +%s)
-  data=`jq ". += {\"online\": $online}" <<< "$data"`
-fi
 
 echo "$data" | jq -c
