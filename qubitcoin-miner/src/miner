@@ -27,6 +27,7 @@ LOG="/dog/log/qubitcoin-miner.log"
 
 # install section end
 
+
 # parse args
 parse_args() {
     local args="$1"
@@ -43,15 +44,13 @@ parse_args() {
         for key in "${keys[@]}"; do
             if [[ "$token" == "--$key" ]]; then
                 local var_name="${key//-/_}"
-
                 if (( i + 1 < ${#tokens[@]} )); then
                     local value="${tokens[$((i+1))]}"
                     export "${var_name}=$value"
                 else
                     export "${var_name}="
                 fi
-
-                ((i++))    # пропустить значение
+                ((i++)) # skip the value
                 is_key=1
                 break
             fi
@@ -62,14 +61,15 @@ parse_args() {
         fi
     done
 
-
-    echo "${filtered[*]}"
+    REMAINING_ARGS="${filtered[*]}"  # Set global variable instead
 }
 
-echo "> additional args: $ADDITION"
-remainingAddition=$(parse_args "$ADDITION" reserved_cores gpu_count)
-#remainingAddition="${REPLY}"
 
+
+echo "> additional args: $ADDITION"
+REMAINING_ARGS=""
+parse_args "$ADDITION" reserved_cores gpu_count
+remainingAddition=$REMAINING_ARGS
 echo "> remaining args: $remainingAddition"
 echo "> using ${gpu_count} gpus"
 
