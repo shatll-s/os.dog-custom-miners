@@ -67,8 +67,8 @@ parse_args() {
 }
 
 echo "> additional args: $ADDITION"
-parse_args "$ADDITION" reserved_cores gpu_count
-remainingAddition="${REPLY}"
+remainingAddition=$(parse_args "$ADDITION" reserved_cores gpu_count)
+#remainingAddition="${REPLY}"
 
 echo "> remaining args: $remainingAddition"
 echo "> using ${gpu_count} gpus"
