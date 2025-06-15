@@ -17,6 +17,8 @@ function NeedToInstall() {
   fi
 }
 
+apt install -yqq libcurl4 libcurl4-openssl-dev
+
 if [[ $(NeedToInstall libc6 "2.32") -eq 1 ]]; then
 	echo -e "> Install libc6"
 	echo "deb http://cz.archive.ubuntu.com/ubuntu jammy main" >> /etc/apt/sources.list
