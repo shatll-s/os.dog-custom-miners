@@ -22,6 +22,7 @@
 #		"coin":"NEXA"
 #	}
 
+algo="qhash"
 miner="qubitcoin-miner"
 
 #	global variables, don`t change it
@@ -38,60 +39,99 @@ gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 
 busid_json='[]'
 declare -a hr_data=( )
+declare -a acc_data=( )
+declare -a rej_data=( )
 
 # initialise array with 0
 for (( i=0; i < gpuCount; i++ )); do
   hr_data+=(0)
+  acc_data+=(0)
+  rej_data+=(0)
 done
 
 API_TIMEOUT=2
 
-stats_template=`echo "summary" | nc -w $API_TIMEOUT localhost $API_PORT | tr -d '\0'`
-threads=`echo "threads" | nc -w $API_TIMEOUT localhost $API_PORT | tr -d '\0'`
-cpuarr=`echo "$threads" | sed -e 's/|/\n/g; s/;/\n/g'`
-rawMinerHr=(`echo "$cpuarr" | grep 'H/s='`)
+miner_online_raw=
 
-hr_json=[]
-total_hr=0
+for (( i=0; i < gpuCount; i++ )); do
+    apiPort="4444$i"
+    stats_template=`echo "summary" | nc -w $API_TIMEOUT localhost $apiPort | tr -d '\0'`
+    if [[ -z $stats_template ]]; then
+      unset 'hr_data[i]'
+      unset 'acc_data[i]'
+      unset 'rej_data[i]'
+      continue
+    fi
 
-for ((i=0; i < ${#rawMinerHr[@]} && i < gpuCount; i++)); do
-  x=1
-  [[ `echo ${rawMinerHr[$i]} | grep -c 'kH/s'` -eq 1 ]] && x=1000
-  rawHr=`echo ${rawMinerHr[$i]} | sed 's#.*H/s=\([.0-9]*\).*#\1#'`
-  hr=`echo "scale=2; $rawHr * $x / 1" | bc -l`
-  hr_json=`jq ". += [$hr]" <<< "$hr_json"`
-  [[ $total_hr ]] && total_hr=$(echo "scale=2;$total_hr + $hr" | bc -l)
+    [[ -z $miner_online_raw ]] && miner_online_raw=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/'`
+    busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
+
+    busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
+
+
+    KHS=$(echo "$stats_template" | grep -oP '(^|;)KHS=\K[^;]*')
+    ACC=$(echo "$stats_template" | grep -oP 'ACC=\K[^;]*')
+    REJ=$(echo "$stats_template" | grep -oP 'REJ=\K[^;]*')
+
+    if [[ -n "$KHS" && $(echo "$KHS > 0" | bc -l) -eq 1 ]]; then
+        hr=`echo "scale=0; $KHS * 1000" | bc -l`
+        hr_data[$i]=$hr
+    fi
+    if (( $(echo "$ACC > 0" | bc -l) )); then
+        acc_data[$i]=$ACC
+    fi
+    if (( $(echo "$REJ > 0" | bc -l) )); then
+        rej_data[$i]=$REJ
+    fi
 done
 
-totalAcc=$(echo "$stats_template" | grep -oP 'ACC=\K[^;]*')
-totalRej=$(echo "$stats_template" | grep -oP 'REJ=\K[^;]*')
-algo=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*ALGO=\([a-zA-Z0-9.]*\)\n.*/\1/'`
-miner_online_raw=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/'`
-online=$(date --date "-$miner_online_raw sec" +%s)
 
-#
-for (( i=0; i < gpuCount; i++ )); do
-    busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
-    busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
+hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+acc_json=$(printf '%s\n' "${acc_data[@]}" | jq -R . | jq -s .)
+rej_json=$(printf '%s\n' "${rej_data[@]}" | jq -R . | jq -s .)
+
+# calculate total_hr
+totalHr=0
+for val in "${hr_data[@]}"; do
+    totalHr=$(echo "$totalHr + $val" | bc)
+done
+
+# calculate total shares
+totalAcc=0
+for val in "${acc_data[@]}"; do
+    totalAcc=$(echo "$totalAcc + $val" | bc)
+done
+
+# calculate total rejected shares
+totalRej=0
+for val in "${rej_data[@]}"; do
+    totalRej=$(echo "$totalRej + $val" | bc)
 done
 
 data=$(
     jq -n \
-        --arg miner "$miner" \
         --arg algo "$algo" \
-        --arg online "$online" \
+        --arg miner "$miner" \
         --argjson busid "$busid_json" \
         --argjson hr "$hr_json" \
+        --argjson share "$acc_json" \
+        --argjson badshare "$rej_json" \
     '{
         miner: $miner,
         algo: $algo,
-        online: $online,
-        total_hr: "'"$total_hr"'",
+        total_hr: "'"$totalHr"'",
         total_share: "'"$totalAcc"'",
         total_badshare: "'"$totalRej"'",
         busid: $busid,
-        hr: $hr
+        hr: $hr,
+        share: $share,
+        badshare: $badshare
     }'
 )
+
+if [[ ! -z $miner_online_raw ]]; then
+  online=$(date --date "-$miner_online_raw sec" +%s)
+  data=`jq ". += {\"online\": $online}" <<< "$data"`
+fi
 
 echo "$data" | jq -c

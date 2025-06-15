@@ -1,0 +1,78 @@
+#!/bin/bash
+####################################################################################
+###
+### qubitcoin miner
+### os.dog integration: @osdog
+###
+####################################################################################
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+CONFIG_FILE=config.env
+LOG="/dog/log/qubitcoin-miner.log"
+#	custom package body
+####################################################################################
+
+# install section
+./install.sh
+
+# install section end
+
+# parse args
+parse_args() {
+    local args="$1"
+    shift
+    local keys=("$@")
+
+    read -ra tokens <<< "$args"
+    local filtered=()
+
+    for ((i = 0; i < ${#tokens[@]}; i++)); do
+        local token="${tokens[i]}"
+        local is_key=0
+
+        for key in "${keys[@]}"; do
+            if [[ "$token" == "--$key" ]]; then
+                local var_name="${key//-/_}"
+
+                if (( i + 1 < ${#tokens[@]} )); then
+                    local value="${tokens[$((i+1))]}"
+                    export "${var_name}=$value"
+                else
+                    export "${var_name}="
+                fi
+
+                ((i++))    # пропустить значение
+                is_key=1
+                break
+            fi
+        done
+
+        if [[ $is_key -eq 0 ]]; then
+            filtered+=("${token}")
+        fi
+    done
+
+
+    echo "${filtered[*]}"
+}
+
+echo "> additional args: $ADDITION"
+parse_args "$ADDITION"
+remainingAddition="${REPLY}"
+echo "> remaining args: $remainingAddition"
+batch="./qubitcoin-miner --url $POOL --coinbase-addr $WALLET --userpass $PASS --api-bind $API_PORT $remainingAddition"
+
+$LINE
+echo -e "${GREEN}> Starting custom miner:${WHITE}"
+echo "$batch"
+unbuffer $batch 2>&1 | tee --append $LOG

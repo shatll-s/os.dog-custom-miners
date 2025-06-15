@@ -1,0 +1,97 @@
+#!/bin/bash
+
+#	example
+#
+#	{
+#		"miner":"lolminer",
+#		"algo":"nexapow",
+#		"online":"1707474764",
+#		"total_hr":"71842910",
+#		"total_share":"1",
+#		"total_badshare":"0",
+#		"ver":"1.82a",
+#		"temp":[31,28,29,29,31,29,30,30],
+#		"temp2":[38,35,35,35,37,34,37,37],
+#		"temp3":[0,0,0,0,0,0,0,0],
+#		"fan":[45,45,44,45,44,44,45,46],
+#		"hr":[11580000,27740000,0,0,2990000,0,22650000,6880000],
+#		"share":[0,1,0,0,0,0,0,0],
+#		"badshare":[0,0,0,0,0,0,0,0],
+#		"invshare":[0,0,0,0,0,0,0,0],
+#		"busid":["03","05","06","07","09","0b","0c","0d"],
+#		"coin":"NEXA"
+#	}
+
+miner="qubitcoin-miner"
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+
+dirname=$(dirname "$0")
+. $dirname/$CFG_FILENAME
+
+GPU_STATS="/run/dog/gpuStats"
+gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+
+busid_json='[]'
+declare -a hr_data=( )
+
+# initialise array with 0
+for (( i=0; i < gpuCount; i++ )); do
+  hr_data+=(0)
+done
+
+API_TIMEOUT=2
+
+stats_template=`echo "summary" | nc -w $API_TIMEOUT localhost $API_PORT | tr -d '\0'`
+threads=`echo "threads" | nc -w $API_TIMEOUT localhost $API_PORT | tr -d '\0'`
+cpuarr=`echo "$threads" | sed -e 's/|/\n/g; s/;/\n/g'`
+rawMinerHr=(`echo "$cpuarr" | grep 'H/s='`)
+
+hr_json=[]
+total_hr=0
+
+for ((i=0; i < ${#rawMinerHr[@]} && i < gpuCount; i++)); do
+  x=1
+  [[ `echo ${rawMinerHr[$i]} | grep -c 'kH/s'` -eq 1 ]] && x=1000
+  rawHr=`echo ${rawMinerHr[$i]} | sed 's#.*H/s=\([.0-9]*\).*#\1#'`
+  hr=`echo "scale=2; $rawHr * $x / 1" | bc -l`
+  hr_json=`jq ". += [$hr]" <<< "$hr_json"`
+  [[ $total_hr ]] && total_hr=$(echo "scale=2;$total_hr + $hr" | bc -l)
+done
+
+totalAcc=$(echo "$stats_template" | grep -oP 'ACC=\K[^;]*')
+totalRej=$(echo "$stats_template" | grep -oP 'REJ=\K[^;]*')
+algo=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*ALGO=\([a-zA-Z0-9.]*\)\n.*/\1/'`
+miner_online_raw=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/'`
+online=$(date --date "-$miner_online_raw sec" +%s)
+
+#
+for (( i=0; i < gpuCount; i++ )); do
+    busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
+    busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
+done
+
+data=$(
+    jq -n \
+        --arg miner "$miner" \
+        --arg algo "$algo" \
+        --arg online "$online" \
+        --argjson busid "$busid_json" \
+        --argjson hr "$hr_json" \
+    '{
+        miner: $miner,
+        algo: $algo,
+        online: $online,
+        total_hr: "'"$total_hr"'",
+        total_share: "'"$totalAcc"'",
+        total_badshare: "'"$totalRej"'",
+        busid: $busid,
+        hr: $hr
+    }'
+)
+
+echo "$data" | jq -c

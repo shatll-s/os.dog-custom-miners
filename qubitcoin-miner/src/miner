@@ -67,12 +67,55 @@ parse_args() {
 }
 
 echo "> additional args: $ADDITION"
-parse_args "$ADDITION"
+parse_args "$ADDITION" reserved_cores gpu_count
 remainingAddition="${REPLY}"
+
 echo "> remaining args: $remainingAddition"
-batch="./qubitcoin-miner --url $POOL --coinbase-addr $WALLET --userpass $PASS --api-bind $API_PORT $remainingAddition"
+echo "> using ${gpu_count} gpus"
+
+[ -z "$reserved_cores" ] && reserved_cores=2
+[ -z "$gpu_count" ] && gpu_count=$(gpu-detect nvidia)
 
 $LINE
 echo -e "${GREEN}> Starting custom miner:${WHITE}"
-echo "$batch"
-unbuffer $batch 2>&1 | tee --append $LOG
+
+MY_PID=$$
+total_cores=$(nproc)
+usable_cores=$((total_cores - reserved_cores))
+base_threads=$((usable_cores / gpu_count))
+extra_threads=$((usable_cores % gpu_count))
+echo "> using ${gpu_count} gpus"
+export LD_LIBRARY_PATH=.
+for ((i = 0; i < gpu_count; i++)); do
+  threads=$base_threads
+  if (( i < extra_threads )); then
+    threads=$((threads + 1))
+  fi
+  if (( threads < 1 )); then
+    threads=1
+  fi
+  echo "> GPU $i → -t $threads"
+  screenName="ccminer$i"
+  apiPort="4444$i"
+  log="/dog/log/qubitcoin-miner$i.log"
+  batch="CUDA_VISIBLE_DEVICES=$i ./ccminer --algo qhash --url $POOL --coinbase-addr $WALLET --userpass $PASS -t $threads --segwit --no-longpoll --api-bind $apiPort $remainingAddition"
+
+  fullBatch=$(cat <<EOF
+(
+  ( while kill -0 $MY_PID 2>/dev/null; do sleep 1; done
+    echo "GPU $i: parent died, shutting down miner..."
+    kill \$\$ ) &
+
+  while true; do $batch 2>&1 | tee -a $log; done
+)
+EOF
+)
+
+  echo "$batch"
+
+  screen-kill $screenName
+  screen -dmS "$screenName" bash -c "$fullBatch"
+done
+
+# for infinity
+tail -f /dev/null
