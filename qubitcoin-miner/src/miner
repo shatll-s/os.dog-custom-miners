@@ -27,7 +27,6 @@ LOG="/dog/log/qubitcoin-miner.log"
 
 # install section end
 
-
 # parse args
 parse_args() {
     local args="$1"
@@ -85,7 +84,6 @@ usable_cores=$((total_cores - reserved_cores))
 base_threads=$((usable_cores / gpu_count))
 extra_threads=$((usable_cores % gpu_count))
 echo "> using ${gpu_count} gpus"
-export LD_LIBRARY_PATH=.
 for ((i = 0; i < gpu_count; i++)); do
   threads=$base_threads
   if (( i < extra_threads )); then
@@ -95,10 +93,16 @@ for ((i = 0; i < gpu_count; i++)); do
     threads=1
   fi
   echo "> GPU $i → -t $threads"
-  screenName="ccminer$i"
+  screenName="qubitcoin-miner$i"
   apiPort="4444$i"
   log="/dog/log/qubitcoin-miner$i.log"
-  batch="CUDA_VISIBLE_DEVICES=$i ./ccminer --algo qhash --url $POOL --coinbase-addr $WALLET --userpass $PASS -t $threads --segwit --no-longpoll --api-bind $apiPort $remainingAddition"
+  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner --algo qhash"
+
+  [ -n "$POOL" ] && batch="$batch -o $POOL"
+  [ -n "$TEMPLATE" ] && batch="$batch -u $TEMPLATE"
+  [ -n "$PASS" ] && batch="$batch --userpass $PASS"
+
+  batch="$batch -t $threads --api-bind $apiPort $remainingAddition"
 
   fullBatch=$(cat <<EOF
 (

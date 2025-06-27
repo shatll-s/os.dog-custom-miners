@@ -96,7 +96,13 @@ for ((i = 0; i < gpu_count; i++)); do
   screenName="qubitcoin-miner$i"
   apiPort="4444$i"
   log="/dog/log/qubitcoin-miner$i.log"
-  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner --algo qhash --url $POOL --coinbase-addr $WALLET --userpass $PASS -t $threads --api-bind $apiPort $remainingAddition"
+  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner --algo qhash"
+
+  [ -n "$POOL" ] && batch="$batch -o $POOL"
+  [ -n "$TEMPLATE" ] && batch="$batch -u $TEMPLATE"
+  [ -n "$PASS" ] && batch="$batch --userpass $PASS"
+
+  batch="$batch -t $threads --api-bind $apiPort $remainingAddition"
 
   fullBatch=$(cat <<EOF
 (
