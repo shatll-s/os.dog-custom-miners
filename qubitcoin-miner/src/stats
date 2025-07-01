@@ -22,9 +22,6 @@
 #		"coin":"NEXA"
 #	}
 
-algo="qhash"
-miner="qubitcoin-miner"
-
 #	global variables, don`t change it
 ####################################################################################
 #	The file contains the following variables:
@@ -52,6 +49,9 @@ done
 API_TIMEOUT=2
 
 miner_online_raw=
+miner_ver=
+miner=
+algo=
 
 for (( i=0; i < gpuCount; i++ )); do
     apiPort="4444$i"
@@ -63,7 +63,11 @@ for (( i=0; i < gpuCount; i++ )); do
       continue
     fi
 
-    [[ -z $miner_online_raw ]] && miner_online_raw=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/'`
+    [[ -z $miner_online_raw ]] && miner_online_raw=$(echo -e $stats_template | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/')
+		[[ -z $miner_ver ]] && miner_ver=$(echo -e $stats_template | sed -e 's/;/\n/g; s/.*VER=\([-a-zA-Z0-9.]*\)\n.*/\1/')
+		[[ -z $miner ]] && miner=$(echo -e $stats_template | sed -e 's/;/\n/g; s/.*NAME=\([-a-zA-Z0-9.]*\)\n.*/\1/')
+      [[ -z $algo ]] && algo=$(echo -e $stats_template | sed -e 's/;/\n/g; s/.*ALGO=\([a-zA-Z0-9.]*\)\n.*/\1/')
+
     busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
 
     busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
@@ -112,13 +116,15 @@ data=$(
     jq -n \
         --arg algo "$algo" \
         --arg miner "$miner" \
+        --arg ver "$miner_ver" \
         --argjson busid "$busid_json" \
         --argjson hr "$hr_json" \
         --argjson share "$acc_json" \
         --argjson badshare "$rej_json" \
     '{
-        miner: $miner,
-        algo: $algo,
+        $miner,
+        $algo,
+        $ver,
         total_hr: "'"$totalHr"'",
         total_share: "'"$totalAcc"'",
         total_badshare: "'"$totalRej"'",
