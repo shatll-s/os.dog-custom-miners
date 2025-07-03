@@ -29,17 +29,22 @@
 CFG_FILENAME="miner.cfg"
 
 dirname=$(dirname "$0")
-. $dirname/$CFG_FILENAME
+[[ -f "$dirname/$CFG_FILENAME" ]] && . $dirname/$CFG_FILENAME
 
 GPU_STATS="/run/dog/gpuStats"
-gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+# Get GPU count from stats file, or default to 1 if file doesn't exist
+if [[ ! -f "$GPU_STATS" ]]; then
+    gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+else
+    gpuCount=0
+fi
 
 busid_json='[]'
 declare -a hr_data=( )
 declare -a acc_data=( )
 declare -a rej_data=( )
 
-# initialise array with 0
+# initialise arrays with 0 for all GPUs
 for (( i=0; i < gpuCount; i++ )); do
   hr_data+=(0)
   acc_data+=(0)
@@ -53,42 +58,71 @@ miner_ver=
 miner=
 algo=
 
-for (( i=0; i < gpuCount; i++ )); do
-    apiPort="4444$i"
-    stats_template=`echo "summary" | nc -w $API_TIMEOUT localhost $apiPort | tr -d '\0'`
-    if [[ -z $stats_template ]]; then
-      unset 'hr_data[i]'
-      unset 'acc_data[i]'
-      unset 'rej_data[i]'
-      continue
+# Get summary data from unified API
+summary_data=$(echo "summary" | nc -w $API_TIMEOUT localhost $API_PORT | tr -d '\0')
+if [[ -n $summary_data ]]; then
+    miner_online_raw=$(echo -e "$summary_data" | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/')
+    miner_ver=$(echo -e "$summary_data" | sed -e 's/;/\n/g; s/.*VER=\([-a-zA-Z0-9.]*\)\n.*/\1/')
+    miner=$(echo -e "$summary_data" | sed -e 's/;/\n/g; s/.*NAME=\([-a-zA-Z0-9.]*\)\n.*/\1/')
+    algo=$(echo -e "$summary_data" | sed -e 's/;/\n/g; s/.*ALGO=\([a-zA-Z0-9.]*\)\n.*/\1/')
+fi
+
+# Get per-GPU data from unified API
+gpus_data=$(echo "gpus" | nc -w $API_TIMEOUT localhost $API_PORT | tr -d '\0')
+
+if [[ -n $gpus_data ]]; then
+    # Parse GPU data - format: GPU=0;Device=0;H/s=5612.88;Threads=12;Accepted=3;Rejected=0|
+    # Split by | to get individual GPU entries
+    IFS='|' read -ra gpu_entries <<< "$gpus_data"
+    
+    for entry in "${gpu_entries[@]}"; do
+        if [[ -n "$entry" && "$entry" =~ GPU=([0-9]+) ]]; then
+            gpu_index="${BASH_REMATCH[1]}"
+            
+            # Ensure gpu_index is within our expected range
+            if (( gpu_index < gpuCount )); then
+                # Extract hashrate (convert from H/s to raw value)
+                if [[ "$entry" =~ H/s=([0-9.]+) ]]; then
+                    hr="${BASH_REMATCH[1]}"
+                    # Convert to integer (multiply by 1 to remove decimals)
+                    hr_int=$(echo "scale=0; $hr * 1" | bc -l)
+                    hr_data[$gpu_index]=$hr_int
+                fi
+                
+                # Extract accepted shares
+                if [[ "$entry" =~ Accepted=([0-9]+) ]]; then
+                    acc="${BASH_REMATCH[1]}"
+                    acc_data[$gpu_index]=$acc
+                fi
+                
+                # Extract rejected shares
+                if [[ "$entry" =~ Rejected=([0-9]+) ]]; then
+                    rej="${BASH_REMATCH[1]}"
+                    rej_data[$gpu_index]=$rej
+                fi
+                
+                # Get busid for this GPU from GPU_STATS
+                if [[ -f "$GPU_STATS" ]]; then
+                    busid=$(jq -r ".gpu[$gpu_index].b" < "$GPU_STATS" 2>/dev/null || echo "00")
+                else
+                    busid="00"
+                fi
+                busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
+            fi
+        fi
+    done
+fi
+
+# Fill remaining busids for GPUs that weren't reported by miner
+current_busid_count=$(echo "$busid_json" | jq 'length')
+for (( i=current_busid_count; i < gpuCount; i++ )); do
+    if [[ -f "$GPU_STATS" ]]; then
+        busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS" 2>/dev/null || echo "00")
+    else
+        busid="00"
     fi
-
-    [[ -z $miner_online_raw ]] && miner_online_raw=$(echo -e $stats_template | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/')
-		[[ -z $miner_ver ]] && miner_ver=$(echo -e $stats_template | sed -e 's/;/\n/g; s/.*VER=\([-a-zA-Z0-9.]*\)\n.*/\1/')
-		[[ -z $miner ]] && miner=$(echo -e $stats_template | sed -e 's/;/\n/g; s/.*NAME=\([-a-zA-Z0-9.]*\)\n.*/\1/')
-      [[ -z $algo ]] && algo=$(echo -e $stats_template | sed -e 's/;/\n/g; s/.*ALGO=\([a-zA-Z0-9.]*\)\n.*/\1/')
-
-    busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
-
     busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
-
-
-    KHS=$(echo "$stats_template" | grep -oP '(^|;)KHS=\K[^;]*')
-    ACC=$(echo "$stats_template" | grep -oP 'ACC=\K[^;]*')
-    REJ=$(echo "$stats_template" | grep -oP 'REJ=\K[^;]*')
-
-    if [[ -n "$KHS" && $(echo "$KHS > 0" | bc -l) -eq 1 ]]; then
-        hr=`echo "scale=0; $KHS * 1000" | bc -l`
-        hr_data[$i]=$hr
-    fi
-    if (( $(echo "$ACC > 0" | bc -l) )); then
-        acc_data[$i]=$ACC
-    fi
-    if (( $(echo "$REJ > 0" | bc -l) )); then
-        rej_data[$i]=$REJ
-    fi
 done
-
 
 hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
 acc_json=$(printf '%s\n' "${acc_data[@]}" | jq -R . | jq -s .)
