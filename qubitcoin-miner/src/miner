@@ -80,5 +80,5 @@ batch="./qubitcoin-miner --algo qhash --api-bind $API_PORT"
 batch="$batch $remainingAddition"
 echo "$batch"
 
-# for infinity
-tail -f /dev/null
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
