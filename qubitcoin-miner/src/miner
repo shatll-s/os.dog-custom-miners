@@ -66,60 +66,19 @@ parse_args() {
 
 
 echo "> additional args: $ADDITION"
-REMAINING_ARGS=""
-parse_args "$ADDITION" reserved_cores gpu_count
-remainingAddition=$REMAINING_ARGS
-echo "> remaining args: $remainingAddition"
-echo "> using ${gpu_count} gpus"
+#REMAINING_ARGS=""
+#parse_args "$ADDITION" reserved_cores gpu_count
+#remainingAddition=$REMAINING_ARGS
+#echo "> remaining args: $remainingAddition"
 
-[ -z "$reserved_cores" ] && reserved_cores=2
-[ -z "$gpu_count" ] && gpu_count=$(gpu-detect nvidia)
+echo -e "${GREEN}> Starting custom miner${WHITE}"
+batch="./qubitcoin-miner --algo qhash --api-bind $API_PORT"
+[ -n "$POOL" ] && batch="$batch -o $POOL"
+[ -n "$TEMPLATE" ] && batch="$batch -u $TEMPLATE"
+[ -n "$PASS" ] && batch="$batch --userpass $PASS"
 
-$LINE
-echo -e "${GREEN}> Starting custom miner:${WHITE}"
-
-MY_PID=$$
-total_cores=$(nproc)
-usable_cores=$((total_cores - reserved_cores))
-base_threads=$((usable_cores / gpu_count))
-extra_threads=$((usable_cores % gpu_count))
-echo "> using ${gpu_count} gpus"
-for ((i = 0; i < gpu_count; i++)); do
-  threads=$base_threads
-  if (( i < extra_threads )); then
-    threads=$((threads + 1))
-  fi
-  if (( threads < 1 )); then
-    threads=1
-  fi
-  echo "> GPU $i → -t $threads"
-  screenName="qubitcoin-miner$i"
-  apiPort="4444$i"
-  log="/dog/log/qubitcoin-miner$i.log"
-  batch="CUDA_VISIBLE_DEVICES=$i ./qubitcoin-miner --algo qhash"
-
-  [ -n "$POOL" ] && batch="$batch -o $POOL"
-  [ -n "$TEMPLATE" ] && batch="$batch -u $TEMPLATE"
-  [ -n "$PASS" ] && batch="$batch --userpass $PASS"
-
-  batch="$batch -t $threads --api-bind $apiPort $remainingAddition"
-
-  fullBatch=$(cat <<EOF
-(
-  ( while kill -0 $MY_PID 2>/dev/null; do sleep 1; done
-    echo "GPU $i: parent died, shutting down miner..."
-    kill \$\$ ) &
-
-  while true; do $batch 2>&1 | tee -a $log; done
-)
-EOF
-)
-
-  echo "$batch"
-
-  screen-kill $screenName
-  screen -dmS "$screenName" bash -c "$fullBatch"
-done
+batch="$batch $remainingAddition"
+echo "$batch"
 
 # for infinity
 tail -f /dev/null
