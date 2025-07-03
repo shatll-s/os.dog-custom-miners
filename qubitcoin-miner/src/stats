@@ -32,12 +32,7 @@ dirname=$(dirname "$0")
 [[ -f "$dirname/$CFG_FILENAME" ]] && . $dirname/$CFG_FILENAME
 
 GPU_STATS="/run/dog/gpuStats"
-# Get GPU count from stats file, or default to 1 if file doesn't exist
-if [[ ! -f "$GPU_STATS" ]]; then
-    gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
-else
-    gpuCount=0
-fi
+gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 
 busid_json='[]'
 declare -a hr_data=( )
@@ -69,7 +64,6 @@ fi
 
 # Get per-GPU data from unified API
 gpus_data=$(echo "gpus" | nc -w $API_TIMEOUT localhost $API_PORT | tr -d '\0')
-
 if [[ -n $gpus_data ]]; then
     # Parse GPU data - format: GPU=0;Device=0;H/s=5612.88;Threads=12;Accepted=3;Rejected=0|
     # Split by | to get individual GPU entries
@@ -78,7 +72,7 @@ if [[ -n $gpus_data ]]; then
     for entry in "${gpu_entries[@]}"; do
         if [[ -n "$entry" && "$entry" =~ GPU=([0-9]+) ]]; then
             gpu_index="${BASH_REMATCH[1]}"
-            
+
             # Ensure gpu_index is within our expected range
             if (( gpu_index < gpuCount )); then
                 # Extract hashrate (convert from H/s to raw value)
