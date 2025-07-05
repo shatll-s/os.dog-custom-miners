@@ -95,13 +95,21 @@ if [[ -n $gpus_data ]]; then
                     rej_data[$gpu_index]=$rej
                 fi
                 
-                # Get busid for this GPU from GPU_STATS
-                if [[ -f "$GPU_STATS" ]]; then
-                    busid=$(jq -r ".gpu[$gpu_index].b" < "$GPU_STATS" 2>/dev/null || echo "00")
+                # Extract BusID directly from API response
+                if [[ "$entry" =~ BusID=([0-9a-fA-F:\.]+) ]]; then
+                    busid="${BASH_REMATCH[1]}"
+                    # Convert to format expected by os.dog (just first two digits)
+                    busid_short=$(echo "$busid" | cut -d: -f1)
+                    busid_json=$(jq ". += [\"$busid_short\"]" <<< "$busid_json")
                 else
-                    busid="00"
+                    # Fallback to GPU_STATS file or default
+                    if [[ -f "$GPU_STATS" ]]; then
+                        busid=$(jq -r ".gpu[$gpu_index].b" < "$GPU_STATS" 2>/dev/null || echo "00")
+                    else
+                        busid="00"
+                    fi
+                    busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
                 fi
-                busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
             fi
         fi
     done

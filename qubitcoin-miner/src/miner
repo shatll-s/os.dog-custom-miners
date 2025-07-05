@@ -66,10 +66,10 @@ parse_args() {
 
 
 echo "> additional args: $ADDITION"
-#REMAINING_ARGS=""
-#parse_args "$ADDITION" reserved_cores gpu_count
-#remainingAddition=$REMAINING_ARGS
-#echo "> remaining args: $remainingAddition"
+REMAINING_ARGS=""
+parse_args "$ADDITION" reserved_cores gpu_count
+remainingAddition=$REMAINING_ARGS
+echo "> remaining args: $remainingAddition"
 
 echo -e "${GREEN}> Starting custom miner${WHITE}"
 batch="./qubitcoin-miner --algo qhash --api-bind $API_PORT"
