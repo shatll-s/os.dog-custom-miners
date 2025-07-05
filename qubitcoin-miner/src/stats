@@ -118,7 +118,8 @@ if [[ -n $gpus_data ]]; then
             # Extract BusID directly from API response
             if [[ "$entry" =~ BusID=([0-9a-fA-F]+) ]]; then
                 busid="${BASH_REMATCH[1]}"
-                # BusID is already in the format we want (e.g., "01", "04", "05")
+                # Convert BusID to lowercase (e.g., "0B" -> "0b")
+                busid=$(echo "$busid" | tr '[:upper:]' '[:lower:]')
                 busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
             fi
         fi
