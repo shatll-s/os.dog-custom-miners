@@ -80,5 +80,17 @@ batch="./qubitcoin-miner --algo qhash --api-bind $API_PORT"
 batch="$batch $remainingAddition"
 echo "$batch"
 
-#	script preserves both colors and interactive input
-script -q -e -c "$batch" /dev/null 2>&1 | tee --append $LOG
+# Trap signals to properly terminate child processes
+cleanup() {
+    if [[ -n $miner_pid ]]; then
+        kill -TERM $miner_pid 2>/dev/null
+        wait $miner_pid 2>/dev/null
+    fi
+    exit
+}
+trap cleanup TERM INT
+
+# Run miner with preserved colors and proper cleanup
+stdbuf -oL -eL $batch 2>&1 | tee --append $LOG &
+miner_pid=$!
+wait $miner_pid
