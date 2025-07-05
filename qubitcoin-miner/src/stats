@@ -1,15 +1,18 @@
 #!/bin/bash
 
+#	Updated to get real PCI Bus IDs from QubitCoin miner API v0.68.1+
+#	No fallback - requires QubitCoin miner with BusID support
+#
 #	example
 #
 #	{
-#		"miner":"lolminer",
-#		"algo":"nexapow",
+#		"miner":"qubitcoin-miner",
+#		"algo":"qhash",
 #		"online":"1707474764",
 #		"total_hr":"71842910",
 #		"total_share":"1",
 #		"total_badshare":"0",
-#		"ver":"1.82a",
+#		"ver":"0.68.1",
 #		"temp":[31,28,29,29,31,29,30,30],
 #		"temp2":[38,35,35,35,37,34,37,37],
 #		"temp3":[0,0,0,0,0,0,0,0],
@@ -18,8 +21,8 @@
 #		"share":[0,1,0,0,0,0,0,0],
 #		"badshare":[0,0,0,0,0,0,0,0],
 #		"invshare":[0,0,0,0,0,0,0,0],
-#		"busid":["03","05","06","07","09","0b","0c","0d"],
-#		"coin":"NEXA"
+#		"busid":["01","04","05","07","08","09","0a","0b"],
+#		"coin":"QBC"
 #	}
 
 #	global variables, don`t change it
@@ -31,8 +34,8 @@ CFG_FILENAME="miner.cfg"
 dirname=$(dirname "$0")
 [[ -f "$dirname/$CFG_FILENAME" ]] && . $dirname/$CFG_FILENAME
 
-GPU_STATS="/run/dog/gpuStats"
-gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+# Get GPU count from API instead of GPU_STATS file
+gpuCount=8  # Default to 8 GPUs, will be adjusted based on API response
 
 busid_json='[]'
 declare -a hr_data=( )
@@ -65,66 +68,71 @@ fi
 # Get per-GPU data from unified API
 gpus_data=$(echo "gpus" | nc -w $API_TIMEOUT localhost $API_PORT | tr -d '\0')
 if [[ -n $gpus_data ]]; then
-    # Parse GPU data - format: GPU=0;Device=0;H/s=5612.88;Threads=12;Accepted=3;Rejected=0|
+    # Parse GPU data - format: GPU=0;BusID=01;Name=RTX 3070;H/s=5612.88;Threads=12;Accepted=3;Rejected=0|
     # Split by | to get individual GPU entries
     IFS='|' read -ra gpu_entries <<< "$gpus_data"
+    
+    # Determine actual GPU count from API response
+    max_gpu_index=-1
+    for entry in "${gpu_entries[@]}"; do
+        if [[ -n "$entry" && "$entry" =~ GPU=([0-9]+) ]]; then
+            gpu_index="${BASH_REMATCH[1]}"
+            if (( gpu_index > max_gpu_index )); then
+                max_gpu_index=$gpu_index
+            fi
+        fi
+    done
+    
+    # Set actual GPU count
+    if (( max_gpu_index >= 0 )); then
+        gpuCount=$((max_gpu_index + 1))
+    fi
+    
+    # Resize arrays to match actual GPU count
+    hr_data=()
+    acc_data=()
+    rej_data=()
+    for (( i=0; i < gpuCount; i++ )); do
+        hr_data+=(0)
+        acc_data+=(0)
+        rej_data+=(0)
+    done
     
     for entry in "${gpu_entries[@]}"; do
         if [[ -n "$entry" && "$entry" =~ GPU=([0-9]+) ]]; then
             gpu_index="${BASH_REMATCH[1]}"
-
-            # Ensure gpu_index is within our expected range
-            if (( gpu_index < gpuCount )); then
-                # Extract hashrate (convert from H/s to raw value)
-                if [[ "$entry" =~ H/s=([0-9.]+) ]]; then
-                    hr="${BASH_REMATCH[1]}"
-                    # Convert to integer (multiply by 1 to remove decimals)
-                    hr_int=$(echo "scale=0; $hr * 1" | bc -l)
-                    hr_data[$gpu_index]=$hr_int
-                fi
-                
-                # Extract accepted shares
-                if [[ "$entry" =~ Accepted=([0-9]+) ]]; then
-                    acc="${BASH_REMATCH[1]}"
-                    acc_data[$gpu_index]=$acc
-                fi
-                
-                # Extract rejected shares
-                if [[ "$entry" =~ Rejected=([0-9]+) ]]; then
-                    rej="${BASH_REMATCH[1]}"
-                    rej_data[$gpu_index]=$rej
-                fi
-                
-                # Extract BusID directly from API response
-                if [[ "$entry" =~ BusID=([0-9a-fA-F:\.]+) ]]; then
-                    busid="${BASH_REMATCH[1]}"
-                    # Convert to format expected by os.dog (just first two digits)
-                    busid_short=$(echo "$busid" | cut -d: -f1)
-                    busid_json=$(jq ". += [\"$busid_short\"]" <<< "$busid_json")
-                else
-                    # Fallback to GPU_STATS file or default
-                    if [[ -f "$GPU_STATS" ]]; then
-                        busid=$(jq -r ".gpu[$gpu_index].b" < "$GPU_STATS" 2>/dev/null || echo "00")
-                    else
-                        busid="00"
-                    fi
-                    busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
-                fi
+            
+            # Extract hashrate (convert from H/s to raw value)
+            if [[ "$entry" =~ H/s=([0-9.]+) ]]; then
+                hr="${BASH_REMATCH[1]}"
+                # Convert to integer (multiply by 1 to remove decimals)
+                hr_int=$(echo "scale=0; $hr * 1" | bc -l)
+                hr_data[$gpu_index]=$hr_int
+            fi
+            
+            # Extract accepted shares
+            if [[ "$entry" =~ Accepted=([0-9]+) ]]; then
+                acc="${BASH_REMATCH[1]}"
+                acc_data[$gpu_index]=$acc
+            fi
+            
+            # Extract rejected shares
+            if [[ "$entry" =~ Rejected=([0-9]+) ]]; then
+                rej="${BASH_REMATCH[1]}"
+                rej_data[$gpu_index]=$rej
+            fi
+            
+            # Extract BusID directly from API response
+            if [[ "$entry" =~ BusID=([0-9a-fA-F]+) ]]; then
+                busid="${BASH_REMATCH[1]}"
+                # BusID is already in the format we want (e.g., "01", "04", "05")
+                busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
             fi
         fi
     done
 fi
 
-# Fill remaining busids for GPUs that weren't reported by miner
-current_busid_count=$(echo "$busid_json" | jq 'length')
-for (( i=current_busid_count; i < gpuCount; i++ )); do
-    if [[ -f "$GPU_STATS" ]]; then
-        busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS" 2>/dev/null || echo "00")
-    else
-        busid="00"
-    fi
-    busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
-done
+# All GPUs should be reported by the API, so no need to fill remaining
 
 hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
 acc_json=$(printf '%s\n' "${acc_data[@]}" | jq -R . | jq -s .)
