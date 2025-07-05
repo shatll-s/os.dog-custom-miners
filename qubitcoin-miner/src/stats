@@ -34,20 +34,13 @@ CFG_FILENAME="miner.cfg"
 dirname=$(dirname "$0")
 [[ -f "$dirname/$CFG_FILENAME" ]] && . $dirname/$CFG_FILENAME
 
-# Get GPU count from API instead of GPU_STATS file
-gpuCount=8  # Default to 8 GPUs, will be adjusted based on API response
+# GPU count will be determined from API response
+gpuCount=0
 
 busid_json='[]'
 declare -a hr_data=( )
 declare -a acc_data=( )
 declare -a rej_data=( )
-
-# initialise arrays with 0 for all GPUs
-for (( i=0; i < gpuCount; i++ )); do
-  hr_data+=(0)
-  acc_data+=(0)
-  rej_data+=(0)
-done
 
 API_TIMEOUT=2
 
@@ -132,11 +125,16 @@ if [[ -n $gpus_data ]]; then
     done
 fi
 
-# All GPUs should be reported by the API, so no need to fill remaining
-
-hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
-acc_json=$(printf '%s\n' "${acc_data[@]}" | jq -R . | jq -s .)
-rej_json=$(printf '%s\n' "${rej_data[@]}" | jq -R . | jq -s .)
+# Handle case when no GPU data is available
+if (( gpuCount == 0 )); then
+    hr_json='[]'
+    acc_json='[]'
+    rej_json='[]'
+else
+    hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+    acc_json=$(printf '%s\n' "${acc_data[@]}" | jq -R . | jq -s .)
+    rej_json=$(printf '%s\n' "${rej_data[@]}" | jq -R . | jq -s .)
+fi
 
 # calculate total_hr
 totalHr=0
