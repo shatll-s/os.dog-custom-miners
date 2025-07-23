@@ -60,6 +60,8 @@ echo "> additional args: $ADDITION"
 REMAINING_ARGS=""
 parse_args "$ADDITION" gpu_count threads_per_gpu
 remainingAddition=$REMAINING_ARGS
+echo "threads_per_gpu $threads_per_gpu"
+echo "gpu_count $gpu_count"
 echo "> remaining args: $remainingAddition"
 if [[ $gpu_count ]]; then
   echo "> rewriting gpu count: $GPU_COUNT -> $gpu_count"
