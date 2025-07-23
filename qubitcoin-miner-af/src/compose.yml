@@ -3,9 +3,18 @@ services:
     build: .
     container_name: qubitcoin-miner
     restart: unless-stopped
-    environment:
-      GPU_COUNT: ${GPU_COUNT}
     ports:
       - "127.0.0.1:44440-44447:44440-44447"
     volumes:
       - /dog/log:/app/log
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      GPU_COUNT: ${GPU_COUNT}

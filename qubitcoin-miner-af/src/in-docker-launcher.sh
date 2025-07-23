@@ -58,7 +58,7 @@ parse_args() {
 
 echo "> additional args: $ADDITION"
 REMAINING_ARGS=""
-parse_args "$ADDITION" gpu_count
+parse_args "$ADDITION" gpu_count threads_per_gpu
 remainingAddition=$REMAINING_ARGS
 echo "> remaining args: $remainingAddition"
 if [[ $gpu_count ]]; then
@@ -73,14 +73,14 @@ MY_PID=$$
 echo kiska
 echo "> using ${GPU_COUNT} gpus"
 for ((i = 0; i < $GPU_COUNT; i++)); do
-  threads=1
+  [[ $threads_per_gpu ]] && threads=1 || threads=1
 
   echo "> GPU $i → -t $threads"
   screenName="qubitcoin-miner$i"
   apiPort="4444$i"
   log="/app/log/qubitcoin-miner$i.log"
   #  --coinbase-addr $WALLET
-  batch="CUDA_VISIBLE_DEVICES=$i ./miner --algo qhash -t $threads --api-bind $apiPort"
+  batch="CUDA_VISIBLE_DEVICES=$i ./miner --algo qhash -t $threads --api-bind 0.0.0.0:$apiPort"
   [[ $POOL ]] && batch="$batch --url $POOL"
   [[ $PASS ]] && batch="$batch --userpass $PASS"
   [[ $TEMPLATE ]] && batch="$batch -u $TEMPLATE"
