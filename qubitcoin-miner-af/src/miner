@@ -32,7 +32,4 @@ docker ps -a --filter "name=qubitcoin-miner" -q | xargs -r docker rm -f
 
 docker compose stop
 docker compose build
-docker compose up -d
-
-# for infinity
-tail -f /dev/null
+docker compose up
