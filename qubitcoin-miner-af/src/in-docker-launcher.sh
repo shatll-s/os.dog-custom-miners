@@ -78,7 +78,7 @@ for ((i = 0; i < $GPU_COUNT; i++)); do
   echo "> GPU $i → -t $threads"
   screenName="qubitcoin-miner$i"
   apiPort="4444$i"
-  log="/dog/log/qubitcoin-miner$i.log"
+  log="/app/log/qubitcoin-miner$i.log"
   #  --coinbase-addr $WALLET
   batch="CUDA_VISIBLE_DEVICES=$i ./miner --algo qhash -t $threads --api-bind $apiPort"
   [[ $POOL ]] && batch="$batch --url $POOL"
