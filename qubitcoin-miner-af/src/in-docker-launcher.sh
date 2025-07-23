@@ -72,10 +72,10 @@ $LINE
 echo -e "${GREEN}> Starting custom miner:${WHITE}"
 
 MY_PID=$$
-echo kiska
+cpus=$(nproc)
 echo "> using ${GPU_COUNT} gpus"
 for ((i = 0; i < $GPU_COUNT; i++)); do
-  threads=${threads_per_gpu:-1}
+  threads=${threads_per_gpu:-$cpus}
 
   echo "> GPU $i → -t $threads"
   screenName="qubitcoin-miner$i"
