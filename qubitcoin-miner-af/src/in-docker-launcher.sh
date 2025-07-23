@@ -56,12 +56,12 @@ parse_args() {
     REMAINING_ARGS="${filtered[*]}"  # Set global variable instead
 }
 
+
 echo "> additional args: $ADDITION"
 REMAINING_ARGS=""
 parse_args "$ADDITION" gpu_count threads_per_gpu
 remainingAddition=$REMAINING_ARGS
-echo "threads_per_gpu $threads_per_gpu"
-echo "gpu_count $gpu_count"
+echo "> using arg threads_per_gpu: $threads_per_gpu"
 echo "> remaining args: $remainingAddition"
 if [[ $gpu_count ]]; then
   echo "> rewriting gpu count: $GPU_COUNT -> $gpu_count"
@@ -75,7 +75,7 @@ MY_PID=$$
 echo kiska
 echo "> using ${GPU_COUNT} gpus"
 for ((i = 0; i < $GPU_COUNT; i++)); do
-  [[ $threads_per_gpu ]] && threads=1 || threads=1
+  threads=${threads_per_gpu:-1}
 
   echo "> GPU $i → -t $threads"
   screenName="qubitcoin-miner$i"
