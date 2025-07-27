@@ -23,7 +23,7 @@
 #	}
 
 algo="qhash"
-miner="qubitcoin-miner"
+miner="afminer"
 
 #	global variables, don`t change it
 ####################################################################################
