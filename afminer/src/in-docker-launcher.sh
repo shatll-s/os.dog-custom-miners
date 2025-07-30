@@ -75,14 +75,32 @@ MY_PID=$$
 cpus=$(nproc)
 echo "> using ${GPU_COUNT} gpus"
 for ((i = 0; i < $GPU_COUNT; i++)); do
-  threads=${threads_per_gpu:-$cpus}
+  # Calculate threads based on threads_per_gpu or auto-calculate
+  if [[ $threads_per_gpu ]]; then
+    threads=$threads_per_gpu
+  else
+    threads=$((cpus / GPU_COUNT))
+    [[ $threads -lt 2 ]] && threads=2
+  fi
 
-  echo "> GPU $i → -t $threads"
+  # Calculate CPU affinity with cyclic distribution
+  start_cpu=$(((i * threads) % cpus))
+  end_cpu=$((start_cpu + threads - 1))
+  
+  # Create bitmask for CPU affinity
+  affinity_mask=0
+  for ((j = start_cpu; j <= end_cpu; j++)); do
+    cpu_idx=$((j % cpus))
+    affinity_mask=$((affinity_mask | (1 << cpu_idx)))
+  done
+  cpu_affinity=$(printf "0x%X" $affinity_mask)
+
+  echo "> GPU $i → -t $threads → CPU affinity $cpu_affinity"
   screenName="qubitcoin-miner$i"
   apiPort="4444$i"
   log="/app/log/qubitcoin-miner$i.log"
   #  --coinbase-addr $WALLET
-  batch="CUDA_VISIBLE_DEVICES=$i ./miner --algo qhash -t $threads --api-bind 0.0.0.0:$apiPort"
+  batch="CUDA_VISIBLE_DEVICES=$i ./miner --algo qhash -t $threads --cpu-affinity $cpu_affinity --api-bind 0.0.0.0:$apiPort"
   [[ $POOL ]] && batch="$batch --url $POOL"
   [[ $PASS ]] && batch="$batch --userpass $PASS"
   [[ $TEMPLATE ]] && batch="$batch -u $TEMPLATE"
