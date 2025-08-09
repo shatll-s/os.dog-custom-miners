@@ -17,7 +17,7 @@ RUN apt install -y --no-install-recommends libcublas12 libcudart12
 ENV LD_LIBRARY_PATH=/usr/local/lib/x86_64-linux-gnu:/usr/local/cuda/lib64:/usr/local/cuda/targets/x86_64-linux/lib:$LD_LIBRARY_PATH
 
 
-COPY miner.cfg .
+#COPY miner.cfg .
 COPY colors .
 
 COPY qubitcoin-miner-opt2 miner
