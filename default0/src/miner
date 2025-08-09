@@ -86,7 +86,7 @@ for ((i = 0; i < gpu_count; i++)); do
   if [[ $threads_per_gpu ]]; then
     threads=$threads_per_gpu
   else
-    threads=$((cpus / GPU_COUNT))
+    threads=$((cpus / gpu_count))
     [[ $threads -lt 2 ]] && threads=2
   fi
 
