@@ -68,20 +68,28 @@ parse_args() {
 
 echo "> additional args: $ADDITION"
 REMAINING_ARGS=""
-parse_args "$ADDITION" gpu_count
+parse_args "$ADDITION" gpu_count threads_per_gpu
 remainingAddition=$REMAINING_ARGS
 echo "> remaining args: $remainingAddition"
 echo "> using ${gpu_count} gpus"
 
 [ -z "$gpu_count" ] && gpu_count=$(gpu-detect nvidia)
-
+#threads_per_gpu=$(( threads / gpu_count ))
 $LINE
 echo -e "${GREEN}> Starting custom miner:${WHITE}"
 
+cpus=$(nproc)
 MY_PID=$$
 echo "> using ${gpu_count} gpus"
 #export LD_LIBRARY_PATH=.
 for ((i = 0; i < gpu_count; i++)); do
+  if [[ $threads_per_gpu ]]; then
+    threads=$threads_per_gpu
+  else
+    threads=$((cpus / GPU_COUNT))
+    [[ $threads -lt 2 ]] && threads=2
+  fi
+
   echo "> GPU $i"
   screenName="default$i"
 #  apiPort="4444$i"
