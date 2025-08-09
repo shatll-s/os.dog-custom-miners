@@ -84,7 +84,7 @@ echo "> using ${gpu_count} gpus"
 for ((i = 0; i < gpu_count; i++)); do
   echo "> GPU $i"
   screenName="default$i"
-  apiPort="4444$i"
+#  apiPort="4444$i"
   log="/dog/log/default-miner$i.log"
   batch="CUDA_VISIBLE_DEVICES=$i ./default"
 
@@ -92,7 +92,7 @@ for ((i = 0; i < gpu_count; i++)); do
   [ -n "$WALLET" ] && batch="$batch -a $WALLET"
   [ -n "$PASS" ] && batch="$batch --userpass $PASS"
 
-  batch="$batch -g $i --api-bind $apiPort $remainingAddition"
+  batch="$batch -g $i $remainingAddition"
 
   fullBatch=$(cat <<EOF
 (
