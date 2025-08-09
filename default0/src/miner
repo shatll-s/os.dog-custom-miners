@@ -94,7 +94,7 @@ for ((i = 0; i < gpu_count; i++)); do
   screenName="default$i"
 #  apiPort="4444$i"
   log="/dog/log/default-miner$i.log"
-  batch="CUDA_VISIBLE_DEVICES=$i ./default"
+  batch="CUDA_VISIBLE_DEVICES=$i ./default -t $threads"
 
   [ -n "$POOL" ] && batch="$batch -o $POOL"
   [ -n "$TEMPLATE" ] && batch="$batch -a $TEMPLATE"
