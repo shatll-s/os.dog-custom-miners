@@ -92,7 +92,8 @@ for ((i = 0; i < gpu_count; i++)); do
   [ -n "$WALLET" ] && batch="$batch -a $WALLET"
   [ -n "$PASS" ] && batch="$batch --userpass $PASS"
 
-  batch="$batch -g $i $remainingAddition"
+#  batch="$batch -g $i $remainingAddition"
+  batch="$batch -g 0 $remainingAddition"
 
   fullBatch=$(cat <<EOF
 (
