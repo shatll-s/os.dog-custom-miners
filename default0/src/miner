@@ -89,7 +89,7 @@ for ((i = 0; i < gpu_count; i++)); do
   batch="CUDA_VISIBLE_DEVICES=$i ./default"
 
   [ -n "$POOL" ] && batch="$batch -o $POOL"
-  [ -n "$WALLET" ] && batch="$batch -a $WALLET"
+  [ -n "$TEMPLATE" ] && batch="$batch -a $TEMPLATE"
   [ -n "$PASS" ] && batch="$batch --userpass $PASS"
 
 #  batch="$batch -g $i $remainingAddition"
