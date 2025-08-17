@@ -83,17 +83,16 @@ EOF
 
 $LINE
 
+# Load NVM if available
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
 nvmVersion=$(nvm --version 2>/dev/null)
 if [[ ! $nvmVersion ]]; then
-	echo -e "> Install nvm"
-	curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
-
-	export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
-	[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
-	source ~/.bashrc
+	echo -e "${RED}> NVM not found, please run install.sh first${WHITE}"
+	exit 1
 else
-	echo "${GREEN}> nodejs already installed${NOCOLOR}"
+	echo -e "${GREEN}> nodejs already installed${WHITE}"
 fi
 NODE_MAJOR=20
 nvm use $NODE_MAJOR

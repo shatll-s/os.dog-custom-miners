@@ -17,6 +17,10 @@ else
 	echo -e "${GREEN}> libc6 already installed${WHITE}"
 fi
 
+# Load NVM if available
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
 nvmVersion=$(nvm --version 2>/dev/null)
 if [[ ! $nvmVersion ]]; then
 	echo -e "> Install nvm"
@@ -24,8 +28,6 @@ if [[ ! $nvmVersion ]]; then
 
 	export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
 	[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
-	source ~/.bashrc
 else
 	echo -e "${GREEN}> nodejs already installed${WHITE}"
 fi
@@ -41,6 +43,13 @@ else
 	echo -e "${GREEN}> git already installed${WHITE}"
 fi
 
+if [[ $(NeedToInstall node-typescript) -eq 1 ]]; then
+	echo "> Install node-typescript"
+	apt install -yqq node-typescript
+else
+	echo -e "${GREEN}> node-typescript already installed${WHITE}"
+fi
+
 dir=files
 if [[ ! -d $dir/.git ]]; then
 	echo "> git dir does not exist, cloning"
@@ -50,7 +59,9 @@ if [[ ! -d $dir/.git ]]; then
 	#tar -xzvf minertools.tar.gz -C $dir
 	cd $dir
 	npm i
+#	echo 'Stage 0:a'
 	tsc
+#	echo 'Stage 0:b'
 else
 	echo -e "${GREEN}> git dir exist, just pull${WHITE}"
 	cd $dir
