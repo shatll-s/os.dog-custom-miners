@@ -50,6 +50,7 @@ if [[ ! -d $dir/.git ]]; then
 	#tar -xzvf minertools.tar.gz -C $dir
 	cd $dir
 	npm i
+	tsc
 else
 	echo -e "${GREEN}> git dir exist, just pull${WHITE}"
 	cd $dir

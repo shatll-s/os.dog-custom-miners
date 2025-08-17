@@ -102,6 +102,6 @@ cd $MINER_DIR
 #node --experimental-websocket dist/miner2.js
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
-batch="node --experimental-websocket node_modules/feeless-node/dist/miner2.js $remainingAddition"
+batch="node --experimental-websocket dist/miner2.js $remainingAddition"
 #	unbuffer is needed to keep colors with tee
 unbuffer $batch 2>&1 | tee --append $LOG
