@@ -18,6 +18,7 @@ CFG_FILENAME="miner.cfg"
 #	custom package variables
 ####################################################################################
 CONFIG_FILE=miner.json
+MINER_DIR=files
 LOG="/dog/log/feeless-miner.log"
 #	custom package body
 ####################################################################################
@@ -70,52 +71,37 @@ parse_args "$ADDITION" wsUrl httpUrl private token
 remainingAddition=$REMAINING_ARGS
 echo "> remaining args: $remainingAddition"
 
-[ -z "$gpu_count" ] && gpu_count=$(gpu-detect nvidia)
-#threads_per_gpu=$(( threads / gpu_count ))
-$LINE
-echo -e "${GREEN}> Starting custom miner:${WHITE}"
-
-cpus=$(nproc)
-MY_PID=$$
-echo "> using ${gpu_count} gpus"
-#export LD_LIBRARY_PATH=.
-for ((i = 0; i < gpu_count; i++)); do
-  if [[ $threads_per_gpu ]]; then
-    threads=$threads_per_gpu
-  else
-    threads=$((cpus / gpu_count))
-    [[ $threads -lt 2 ]] && threads=2
-  fi
-
-  echo "> GPU $i"
-  screenName="default$i"
-#  apiPort="4444$i"
-  log="/dog/log/default-miner$i.log"
-  batch="CUDA_VISIBLE_DEVICES=$i ./default -t $threads"
-
-  [ -n "$POOL" ] && batch="$batch -o $POOL"
-  [ -n "$TEMPLATE" ] && batch="$batch -a $TEMPLATE"
-  [ -n "$PASS" ] && batch="$batch --userpass $PASS"
-
-#  batch="$batch -g $i $remainingAddition"
-  batch="$batch -g 0 $remainingAddition"
-
-  fullBatch=$(cat <<EOF
-(
-  ( while kill -0 $MY_PID 2>/dev/null; do sleep 1; done
-    echo "GPU $i: parent died, shutting down miner..."
-    kill \$\$ ) &
-
-  while true; do $batch 2>&1 | tee -a $log; done
-)
+# Create JSON config file
+cat > "$CONFIG_FILE" << EOF
+{
+  "wsUrl": "${wsUrl:-ws://localhost:20000}",
+  "httpUrl": "${httpUrl:-http://localhost:8000}",
+  "private": "${private:-xxx}",
+  "token": "${token:-}"
+}
 EOF
-)
 
-  echo "$batch"
+$LINE
 
-  screen-kill $screenName
-  screen -dmS "$screenName" bash -c "$fullBatch"
-done
+nvmVersion=$(nvm --version 2>/dev/null)
+if [[ ! $nvmVersion ]]; then
+	echo -e "> Install nvm"
+	curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
 
-# for infinity
-tail -f /dev/null
+	export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+	[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+	source ~/.bashrc
+else
+	echo "${GREEN}> nodejs already installed${NOCOLOR}"
+fi
+NODE_MAJOR=18
+nvm use $NODE_MAJOR
+
+cd $MINER_DIR
+
+$LINE
+echo -e "${GREEN}> Starting custom miner${WHITE}"
+batch="node --experimental-websocket node_modules/feeless-node/dist/miner2.js $remainingAddition"
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
