@@ -30,7 +30,7 @@ else
 	echo -e "${GREEN}> nodejs already installed${WHITE}"
 fi
 
-NODE_MAJOR=18
+NODE_MAJOR=20
 nvm install $NODE_MAJOR
 nvm use $NODE_MAJOR
 
