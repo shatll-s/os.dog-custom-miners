@@ -105,8 +105,8 @@ for ((i = 0; i < $GPU_COUNT; i++)); do
   echo "> GPU $i"
   screenName="miner$i"
   log="/app/log/feeless-gpu$i.log"
-  batch="CUDA_VISIBLE_DEVICES=$i $batch"
-  echo $batch
+  deviceBatch="CUDA_VISIBLE_DEVICES=$i $batch"
+  echo $deviceBatch
 
   fullBatch=$(cat <<EOF
 (
@@ -114,12 +114,12 @@ for ((i = 0; i < $GPU_COUNT; i++)); do
     echo "GPU $i: parent died, shutting down miner..."
     kill \$\$ ) &
 
-  while true; do $batch 2>&1 | tee -a $log; done
+  while true; do $deviceBatch 2>&1 | tee -a $log; done
 )
 EOF
 )
 
-  echo "@@ $batch @@"
+  echo "@@ $deviceBatch @@"
 
   screenKill $screenName
   screen -dmS "$screenName" bash -c "$fullBatch"
