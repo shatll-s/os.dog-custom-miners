@@ -7,7 +7,7 @@
 #	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
 CFG_FILENAME="miner.cfg"
 . $CFG_FILENAME
-#LOG="/app/log/feeless-gpu.log"
+LOG="/app/log/feeless-gpu.log"
 #	custom package variables
 ####################################################################################
 #	custom package body
@@ -98,7 +98,6 @@ echo "$batch"
 
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 unbuffer $batch 2>&1 | tee --append $LOG
-
 
 #
 #MY_PID=$$
