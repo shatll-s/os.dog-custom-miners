@@ -7,7 +7,7 @@
 #	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
 CFG_FILENAME="miner.cfg"
 . $CFG_FILENAME
-
+LOG="/app/log/feeless-gpu.log"
 #	custom package variables
 ####################################################################################
 #	custom package body
@@ -58,8 +58,10 @@ parse_args() {
 
 echo "> additional args: $ADDITION"
 REMAINING_ARGS=""
-parse_args "$ADDITION" example_arg
+parse_args "$ADDITION" priv http ws
 remainingAddition=$REMAINING_ARGS
+PRIVATE="${priv:-$WALLET}"
+
 #echo "> using arg threads_per_gpu: $threads_per_gpu"
 echo "> remaining args: $remainingAddition"
 #if [[ $gpu_count ]]; then
@@ -67,10 +69,34 @@ echo "> remaining args: $remainingAddition"
 #  GPU_COUNT=$gpu_count
 #fi
 
-batch="./miner $remainingAddition"
+# feeless-gpu-miner arguments:
+#   --priv <hex32>            secp256k1 private key (32-byte hex)
+#   --http <url>              node HTTP base (default http://localhost:8000)
+#   --ws <url>                node WS url (optional; reserved)
+#   --devices <csv>           GPU indexes, e.g. 0 or 0,1 (default: all)
+#   --workers <N|auto>        per process; default auto (=per GPU)
+#   --start-batch <N>         autotune start (default 128)
+#   --max-batch <N>           autotune upper bound (default 2048)
+#   --step-factor <f>         autotune growth factor (default 1.15)
+#   --step-seconds <N>        measure seconds per step (default 8)
+#   --warmup-seconds <N>      warmup (default 3)
+#   --tolerance <f>           stop if gain < tol (default 0.02)
+#   --by-segment <0|1>        argon2 kernel mode (default 0)
+#   --precompute <0|1>        precompute refs (default 1)
+
+batch="./miner"
+[[ -n "$PRIVATE" ]] && batch+=" --priv $PRIVATE"
+[[ -n "$http" ]] && batch+=" --http $http"
+[[ -n "$ws" ]] && batch+=" --ws $ws"
+
+[[ -n "$remainingAddition" ]] && batch+=" $remainingAddition"
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
 echo "$batch"
+
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
+
 
 #
 #MY_PID=$$
