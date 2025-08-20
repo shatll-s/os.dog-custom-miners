@@ -1,7 +1,7 @@
 #!/bin/bash
 ####################################################################################
 ###
-### feeless gpu miner
+### qubitcoin miner
 ### os.dog integration: @osdog
 ###
 ####################################################################################
@@ -17,63 +17,19 @@ CFG_FILENAME="miner.cfg"
 
 #	custom package variables
 ####################################################################################
-LOG="/dog/log/bteminer.log"
+CONFIG_FILE=config.env
+LOG="/dog/log/qubitcoin-miner.log"
 #	custom package body
 ####################################################################################
 
 # install section
-#./install.sh
-
+./install-docker.sh
 # install section end
 
+echo "GPU_COUNT=$(gpu-detect nvidia)" > .env
 
-# parse args
-parse_args() {
-    local args="$1"
-    shift
-    local keys=("$@")
+docker ps -a --filter "name=qubitcoin-miner" -q | xargs -r docker rm -f
 
-    read -ra tokens <<< "$args"
-    local filtered=()
-
-    for ((i = 0; i < ${#tokens[@]}; i++)); do
-        local token="${tokens[i]}"
-        local is_key=0
-
-        for key in "${keys[@]}"; do
-            if [[ "$token" == "--$key" ]]; then
-                local var_name="${key//-/_}"
-                if (( i + 1 < ${#tokens[@]} )); then
-                    local value="${tokens[$((i+1))]}"
-                    export "${var_name}=$value"
-                else
-                    export "${var_name}="
-                fi
-                ((i++)) # skip the value
-                is_key=1
-                break
-            fi
-        done
-
-        if [[ $is_key -eq 0 ]]; then
-            filtered+=("${token}")
-        fi
-    done
-
-    REMAINING_ARGS="${filtered[*]}"  # Set global variable instead
-}
-
-echo "> additional args: $ADDITION"
-REMAINING_ARGS=""
-parse_args "$ADDITION" example_arg
-remainingAddition=$REMAINING_ARGS
-echo "> remaining args: $remainingAddition"
-#[[ ! $diff ]] && diff=26
-
-batch="./feeless-gpu-miner $remainingAddition"
-
-$LINE
-echo -e "${GREEN}> Starting custom miner${WHITE}"
-echo "$batch"
-#	unbuffer is needed to keep colors with tee
-unbuffer $batch 2>&1 | tee --append $LOG
+docker compose stop
+docker compose build
+docker compose up
