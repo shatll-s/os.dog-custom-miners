@@ -23,9 +23,7 @@ LOG="/dog/log/mcm.log"
 
 # install section
 #./install.sh
-
 # install section end
-
 
 # parse args
 parse_args() {
@@ -71,10 +69,6 @@ echo "> remaining args: $remainingAddition"
 [[ ! $diff ]] && diff=26
 [[ ! $region ]] && region=eu
 
-
-$LINE
-./lpmochimo --wallet WALLET --diff 26 --region eu --worker WORKER
-#node --experimental-websocket dist/miner2.js
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
 

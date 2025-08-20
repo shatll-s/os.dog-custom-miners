@@ -34,7 +34,7 @@ baseDir=`dirname $0`
 
 LOG="/dog/log/mcm.log"
 
-algo="mcm"
+algo="peach"
 miner="mcm"
 
 ver='1.0'
