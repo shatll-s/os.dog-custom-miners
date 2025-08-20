@@ -1,0 +1,35 @@
+#!/bin/bash
+####################################################################################
+###
+### feeless gpu miner
+### os.dog integration: @osdog
+###
+####################################################################################
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+CONFIG_FILE=config.env
+LOG="/dog/log/feeless-gpu.log"
+#	custom package body
+####################################################################################
+
+# install section
+./install-docker.sh
+# install section end
+
+echo "GPU_COUNT=$(gpu-detect nvidia)" > .env
+
+docker ps -a --filter "name=feeless-gpu" -q | xargs -r docker rm -f
+
+docker compose stop
+docker compose build
+docker compose up

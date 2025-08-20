@@ -1,0 +1,136 @@
+#!/bin/bash
+
+#	example
+#
+#	{
+#		"miner":"lolminer",
+#		"algo":"nexapow",
+#		"online":"1707474764",
+#		"total_hr":"71842910",
+#		"total_share":"1",
+#		"total_badshare":"0",
+#		"ver":"1.82a",
+#		"temp":[31,28,29,29,31,29,30,30],
+#		"temp2":[38,35,35,35,37,34,37,37],
+#		"temp3":[0,0,0,0,0,0,0,0],
+#		"fan":[45,45,44,45,44,44,45,46],
+#		"hr":[11580000,27740000,0,0,2990000,0,22650000,6880000],
+#		"share":[0,1,0,0,0,0,0,0],
+#		"badshare":[0,0,0,0,0,0,0,0],
+#		"invshare":[0,0,0,0,0,0,0,0],
+#		"busid":["03","05","06","07","09","0b","0c","0d"],
+#		"coin":"NEXA"
+#	}
+
+algo="qhash"
+miner="afminer"
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+
+dirname=$(dirname "$0")
+. $dirname/$CFG_FILENAME
+
+GPU_STATS="/run/dog/gpuStats"
+gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+
+busid_json='[]'
+declare -a hr_data=( )
+declare -a acc_data=( )
+declare -a rej_data=( )
+
+# initialise array with 0
+for (( i=0; i < gpuCount; i++ )); do
+  hr_data+=(0)
+  acc_data+=(0)
+  rej_data+=(0)
+done
+
+API_TIMEOUT=2
+
+miner_online_raw=
+
+for (( i=0; i < gpuCount; i++ )); do
+    apiPort="4444$i"
+    stats_template=`echo "summary" | nc -w $API_TIMEOUT localhost $apiPort | tr -d '\0'`
+    if [[ -z $stats_template ]]; then
+      unset 'hr_data[i]'
+      unset 'acc_data[i]'
+      unset 'rej_data[i]'
+      continue
+    fi
+
+    [[ -z $miner_online_raw ]] && miner_online_raw=`echo -e $stats_template | sed -e 's/;/\n/g; s/.*UPTIME=\([0-9]*\)\n.*/\1/'`
+    busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
+
+    busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
+
+
+    HS=$(echo "$stats_template" | grep -oP '(^|;)HS=\K[^;]*')
+    ACC=$(echo "$stats_template" | grep -oP 'ACC=\K[^;]*')
+    REJ=$(echo "$stats_template" | grep -oP 'REJ=\K[^;]*')
+
+    if [[ -n "$HS" && $(echo "$HS > 0" | bc -l) -eq 1 ]]; then
+        hr_data[$i]=$HS
+    fi
+    if (( $(echo "$ACC > 0" | bc -l) )); then
+        acc_data[$i]=$ACC
+    fi
+    if (( $(echo "$REJ > 0" | bc -l) )); then
+        rej_data[$i]=$REJ
+    fi
+done
+
+
+hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+acc_json=$(printf '%s\n' "${acc_data[@]}" | jq -R . | jq -s .)
+rej_json=$(printf '%s\n' "${rej_data[@]}" | jq -R . | jq -s .)
+
+# calculate total_hr
+totalHr=0
+for val in "${hr_data[@]}"; do
+    totalHr=$(echo "$totalHr + $val" | bc)
+done
+
+# calculate total shares
+totalAcc=0
+for val in "${acc_data[@]}"; do
+    totalAcc=$(echo "$totalAcc + $val" | bc)
+done
+
+# calculate total rejected shares
+totalRej=0
+for val in "${rej_data[@]}"; do
+    totalRej=$(echo "$totalRej + $val" | bc)
+done
+
+data=$(
+    jq -n \
+        --arg algo "$algo" \
+        --arg miner "$miner" \
+        --argjson busid "$busid_json" \
+        --argjson hr "$hr_json" \
+        --argjson share "$acc_json" \
+        --argjson badshare "$rej_json" \
+    '{
+        miner: $miner,
+        algo: $algo,
+        total_hr: "'"$totalHr"'",
+        total_share: "'"$totalAcc"'",
+        total_badshare: "'"$totalRej"'",
+        busid: $busid,
+        hr: $hr,
+        share: $share,
+        badshare: $badshare
+    }'
+)
+
+if [[ ! -z $miner_online_raw ]]; then
+  online=$(date --date "-$miner_online_raw sec" +%s)
+  data=`jq ". += {\"online\": $online}" <<< "$data"`
+fi
+
+echo "$data" | jq -c
