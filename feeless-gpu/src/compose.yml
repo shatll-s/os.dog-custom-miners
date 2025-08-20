@@ -2,7 +2,7 @@ services:
   miner:
     network_mode: "host"
     build: .
-    container_name: qubitcoin-miner
+    container_name: feeless-gpu
     restart: unless-stopped
 #    ports:
 #      - "127.0.0.1:44440-44447:44440-44447"

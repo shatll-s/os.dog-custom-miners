@@ -71,9 +71,10 @@ echo "> remaining args: $remainingAddition"
 [[ ! $diff ]] && diff=26
 [[ ! $region ]] && region=eu
 
+batch="./bteminer --wallet $WALLET --diff $diff --region $region $remainingAddition"
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
+echo "$batch"
 
-batch="./lpmochimo --wallet $WALLET --diff $diff --region $region $remainingAddition"
 #	unbuffer is needed to keep colors with tee
 unbuffer $batch 2>&1 | tee --append $LOG

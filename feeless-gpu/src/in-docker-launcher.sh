@@ -1,6 +1,5 @@
 #!/bin/bash
 . colors
-#cd `dirname $0`
 
 #	global variables, don`t change it
 ####################################################################################
@@ -59,70 +58,73 @@ parse_args() {
 
 echo "> additional args: $ADDITION"
 REMAINING_ARGS=""
-parse_args "$ADDITION" gpu_count threads_per_gpu
+parse_args "$ADDITION" example_arg
 remainingAddition=$REMAINING_ARGS
-echo "> using arg threads_per_gpu: $threads_per_gpu"
+#echo "> using arg threads_per_gpu: $threads_per_gpu"
 echo "> remaining args: $remainingAddition"
-if [[ $gpu_count ]]; then
-  echo "> rewriting gpu count: $GPU_COUNT -> $gpu_count"
-  GPU_COUNT=$gpu_count
-fi
+#if [[ $gpu_count ]]; then
+#  echo "> rewriting gpu count: $GPU_COUNT -> $gpu_count"
+#  GPU_COUNT=$gpu_count
+#fi
 
+batch="./miner $remainingAddition"
 $LINE
-echo -e "${GREEN}> Starting custom miner:${WHITE}"
+echo -e "${GREEN}> Starting custom miner${WHITE}"
+echo "$batch"
 
-MY_PID=$$
-cpus=$(nproc)
-echo "> using ${GPU_COUNT} gpus"
-for ((i = 0; i < $GPU_COUNT; i++)); do
-  # Calculate threads based on threads_per_gpu or auto-calculate
-  if [[ $threads_per_gpu ]]; then
-    threads=$threads_per_gpu
-  else
-    threads=$((cpus / GPU_COUNT))
-    [[ $threads -lt 2 ]] && threads=2
-  fi
-
-  # Calculate CPU affinity with cyclic distribution
-  start_cpu=$(((i * threads) % cpus))
-  end_cpu=$((start_cpu + threads - 1))
-  
-  # Create bitmask for CPU affinity
-  affinity_mask=0
-  for ((j = start_cpu; j <= end_cpu; j++)); do
-    cpu_idx=$((j % cpus))
-    affinity_mask=$((affinity_mask | (1 << cpu_idx)))
-  done
-  cpu_affinity=$(printf "0x%X" $affinity_mask)
-
-  echo "> GPU $i → -t $threads → CPU affinity $cpu_affinity"
-  screenName="qubitcoin-miner$i"
-  apiPort="4444$i"
-  log="/app/log/qubitcoin-miner$i.log"
-  #  --coinbase-addr $WALLET
-  batch="CUDA_VISIBLE_DEVICES=$i ./miner --algo qhash -t $threads --cpu-affinity $cpu_affinity --api-bind 0.0.0.0:$apiPort"
-  [[ $POOL ]] && batch="$batch --url $POOL"
-  [[ $PASS ]] && batch="$batch --userpass $PASS"
-  [[ $TEMPLATE ]] && batch="$batch -u $TEMPLATE"
-  echo $batch
-  [[ $remainingAddition ]] && batch="$batch $remainingAddition"
-
-  fullBatch=$(cat <<EOF
-(
-  ( while kill -0 $MY_PID 2>/dev/null; do sleep 1; done
-    echo "GPU $i: parent died, shutting down miner..."
-    kill \$\$ ) &
-
-  while true; do $batch 2>&1 | tee -a $log; done
-)
-EOF
-)
-
-  echo "@@ $batch @@"
-
-  screenKill $screenName
-  screen -dmS "$screenName" bash -c "$fullBatch"
-done
-
-# for infinity
-tail -f /dev/null
+#
+#MY_PID=$$
+#cpus=$(nproc)
+#echo "> using ${GPU_COUNT} gpus"
+#for ((i = 0; i < $GPU_COUNT; i++)); do
+#  # Calculate threads based on threads_per_gpu or auto-calculate
+#  if [[ $threads_per_gpu ]]; then
+#    threads=$threads_per_gpu
+#  else
+#    threads=$((cpus / GPU_COUNT))
+#    [[ $threads -lt 2 ]] && threads=2
+#  fi
+#
+#  # Calculate CPU affinity with cyclic distribution
+#  start_cpu=$(((i * threads) % cpus))
+#  end_cpu=$((start_cpu + threads - 1))
+#
+#  # Create bitmask for CPU affinity
+#  affinity_mask=0
+#  for ((j = start_cpu; j <= end_cpu; j++)); do
+#    cpu_idx=$((j % cpus))
+#    affinity_mask=$((affinity_mask | (1 << cpu_idx)))
+#  done
+#  cpu_affinity=$(printf "0x%X" $affinity_mask)
+#
+#  echo "> GPU $i → -t $threads → CPU affinity $cpu_affinity"
+#  screenName="qubitcoin-miner$i"
+#  apiPort="4444$i"
+#  log="/app/log/qubitcoin-miner$i.log"
+#  #  --coinbase-addr $WALLET
+#  batch="CUDA_VISIBLE_DEVICES=$i ./miner --algo qhash -t $threads --cpu-affinity $cpu_affinity --api-bind 0.0.0.0:$apiPort"
+#  [[ $POOL ]] && batch="$batch --url $POOL"
+#  [[ $PASS ]] && batch="$batch --userpass $PASS"
+#  [[ $TEMPLATE ]] && batch="$batch -u $TEMPLATE"
+#  echo $batch
+#  [[ $remainingAddition ]] && batch="$batch $remainingAddition"
+#
+#  fullBatch=$(cat <<EOF
+#(
+#  ( while kill -0 $MY_PID 2>/dev/null; do sleep 1; done
+#    echo "GPU $i: parent died, shutting down miner..."
+#    kill \$\$ ) &
+#
+#  while true; do $batch 2>&1 | tee -a $log; done
+#)
+#EOF
+#)
+#
+#  echo "@@ $batch @@"
+#
+#  screenKill $screenName
+#  screen -dmS "$screenName" bash -c "$fullBatch"
+#done
+#
+## for infinity
+#tail -f /dev/null
