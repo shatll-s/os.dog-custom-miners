@@ -1,0 +1,83 @@
+#!/bin/bash
+####################################################################################
+###
+### mcm miner for luckypool
+### os.dog integration: @osdog
+###
+####################################################################################
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+LOG="/dog/log/mcm.log"
+#	custom package body
+####################################################################################
+
+# install section
+#./install.sh
+
+# install section end
+
+
+# parse args
+parse_args() {
+    local args="$1"
+    shift
+    local keys=("$@")
+
+    read -ra tokens <<< "$args"
+    local filtered=()
+
+    for ((i = 0; i < ${#tokens[@]}; i++)); do
+        local token="${tokens[i]}"
+        local is_key=0
+
+        for key in "${keys[@]}"; do
+            if [[ "$token" == "--$key" ]]; then
+                local var_name="${key//-/_}"
+                if (( i + 1 < ${#tokens[@]} )); then
+                    local value="${tokens[$((i+1))]}"
+                    export "${var_name}=$value"
+                else
+                    export "${var_name}="
+                fi
+                ((i++)) # skip the value
+                is_key=1
+                break
+            fi
+        done
+
+        if [[ $is_key -eq 0 ]]; then
+            filtered+=("${token}")
+        fi
+    done
+
+    REMAINING_ARGS="${filtered[*]}"  # Set global variable instead
+}
+
+echo "> additional args: $ADDITION"
+REMAINING_ARGS=""
+parse_args "$ADDITION" diff region
+remainingAddition=$REMAINING_ARGS
+echo "> remaining args: $remainingAddition"
+[[ ! $diff ]] && diff=26
+[[ ! $region ]] && region=eu
+
+
+$LINE
+./lpmochimo --wallet WALLET --diff 26 --region eu --worker WORKER
+#node --experimental-websocket dist/miner2.js
+$LINE
+echo -e "${GREEN}> Starting custom miner${WHITE}"
+
+batch="./lpmochimo --wallet $WALLET --diff $diff --region $region $remainingAddition"
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
