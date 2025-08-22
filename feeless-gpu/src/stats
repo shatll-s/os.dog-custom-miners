@@ -1,131 +1,35 @@
 #!/bin/bash
-set -euo pipefail
-
-# feeless-gpu stats parser
-# Parses logs from /dog/log/feeless-gpu*.log and outputs JSON stats
 
 algo="argon2"
 miner="feeless-gpu"
 
-# Global variables from miner.cfg
-CFG_FILENAME="miner.cfg"
-dirname=$(dirname "$0")
-. "$dirname/$CFG_FILENAME"
+LOG="/dog/log/feeless-gpu.log"
 
-GPU_STATS="/run/dog/gpuStats"
-LOG_DIR="/dog/log"
+# Extract latest hashrate from log
+#LOG="/dog/log/feeless-miner.log"; tail -20 "$LOG" | grep "Hashrate:" | tail -1 | grep -oP 'Hashrate: \K[0-9]+' | tail -n 1
+latest_hashrate=$(tail -20 "$LOG" | sed -n 's/.*Hashrate: \([0-9]*\).*/\1/p' | tail -n 1)
+[[ -z "$latest_hashrate" ]] && latest_hashrate=0
 
-# Check if GPU stats file exists
-if [[ ! -f "$GPU_STATS" ]]; then
-    echo '{"error": "GPU stats file not found"}' | jq -c
-    exit 1
+# Calculate uptime based on process start time
+uptime_sec=0
+miner_pid=$(pgrep -f "node.*miner2.js" | head -1)
+if [[ -n "$miner_pid" ]]; then
+    start_time=$(stat -c %Y /proc/$miner_pid 2>/dev/null)
+    if [[ -n "$start_time" ]]; then
+        current_time=$(date +%s)
+        uptime_sec=$((current_time - start_time))
+    fi
 fi
 
-gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
-
-# Parse each GPU log file - use GPU_COUNT if available, otherwise gpuCount
-log_count=${GPU_COUNT:-$gpuCount}
-
-# Initialize arrays only for actual working GPUs
-busid_json='[]'
-declare -a hr_data=()
-declare -a share_data=()
-declare -a badshare_data=()
-
-# Initialize arrays with 0 only for working GPUs
-for (( i=0; i < log_count && i < gpuCount; i++ )); do
-    hr_data+=(0)
-    share_data+=(0)
-    badshare_data+=(0)
-    
-    # Build busid array
-    busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
-    busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
-done
-
-miner_online=""
-total_hr=0
-
-for (( i=0; i < log_count && i < gpuCount; i++ )); do
-    log_file="$LOG_DIR/feeless-gpu$i.log"
-    
-    if [[ ! -f "$log_file" ]]; then
-        continue
-    fi
-    
-    # Extract latest hashrate from log
-    # Format: "Hashrate: 6023 H/s (1 GPU)"
-    latest_hr=$(tail -n 50 "$log_file" | grep -o "Hashrate: [0-9]* H/s" | tail -n 1 | grep -o "[0-9]*" || echo "0")
-    
-    if [[ -n "$latest_hr" && "$latest_hr" -gt 0 ]]; then
-        hr_data[$i]=$latest_hr
-        total_hr=$((total_hr + latest_hr))
-    fi
-    
-    # Count successful submits (shares)
-    if [[ -f "$log_file" ]]; then
-        submit_count=$(grep -c "\[submit\] GPU#$i SUCCESS" "$log_file" 2>/dev/null || echo "0")
-        share_data[$i]=$submit_count
-        
-        # Count failed submits (bad shares)
-        fail_count=$(grep -c "\[submit\] GPU#$i FAIL" "$log_file" 2>/dev/null || echo "0")
-        badshare_data[$i]=$fail_count
-    fi
-done
-
-# Convert arrays to JSON
-hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R 'tonumber' | jq -s .)
-share_json=$(printf '%s\n' "${share_data[@]}" | jq -R 'tonumber' | jq -s .)
-badshare_json=$(printf '%s\n' "${badshare_data[@]}" | jq -R 'tonumber' | jq -s .)
-
-# Calculate totals
-total_share=0
-total_badshare=0
-
-for val in "${share_data[@]}"; do
-    if [[ "$val" =~ ^[0-9]+$ ]]; then
-        total_share=$((total_share + val))
-    fi
-done
-
-for val in "${badshare_data[@]}"; do
-    if [[ "$val" =~ ^[0-9]+$ ]]; then
-        total_badshare=$((total_badshare + val))
-    fi
-done
-
-# Try to get miner start time from first log
-first_log="$LOG_DIR/feeless-gpu0.log"
-if [[ -f "$first_log" ]]; then
-    # Use file modification time as approximation for online time
-    online=$(stat -c %Y "$first_log")
-else
-    online=$(date +%s)
-fi
-
-# Generate final JSON
-data=$(jq -n \
-    --arg algo "$algo" \
+# Create JSON output
+jq -n \
     --arg miner "$miner" \
-    --arg total_hr "$total_hr" \
-    --arg total_share "$total_share" \
-    --arg total_badshare "$total_badshare" \
-    --arg online "$online" \
-    --argjson busid "$busid_json" \
-    --argjson hr "$hr_json" \
-    --argjson share "$share_json" \
-    --argjson badshare "$badshare_json" \
+    --arg algo "$algo" \
+    --arg total_hr "$latest_hashrate" \
+    --arg uptime "$uptime_sec" \
     '{
         miner: $miner,
         algo: $algo,
-        online: $online,
         total_hr: $total_hr,
-        total_share: $total_share,
-        total_badshare: $total_badshare,
-        busid: $busid,
-        hr: $hr,
-        share: $share,
-        badshare: $badshare
-    }')
-
-echo "$data" | jq -c
+        uptime: $uptime
+    }' | jq -c

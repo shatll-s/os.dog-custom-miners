@@ -95,34 +95,33 @@ echo -e "${GREEN}> Starting custom miner${WHITE}"
 echo "$batch"
 
 ##	unbuffer is needed to keep colors with tee
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+unbuffer $batch 2>&1 | tee --append $LOG
 
-#export CUDA_DEVICE_ORDER=PCI_BUS_ID
-#unbuffer $batch 2>&1 | tee --append $LOG
-
-
-MY_PID=$$
-echo "> using ${GPU_COUNT} gpus"
-for ((i = 0; i < $GPU_COUNT; i++)); do
-  echo "> GPU $i"
-  screenName="miner$i"
-  log="/app/log/feeless-gpu$i.log"
-  deviceBatch="CUDA_VISIBLE_DEVICES=$i $batch"
-  echo $deviceBatch
-
-  fullBatch=$(cat <<EOF
-(
-  ( while kill -0 $MY_PID 2>/dev/null; do sleep 1; done
-    echo "GPU $i: parent died, shutting down miner..."
-    kill \$\$ ) &
-
-  while true; do $deviceBatch 2>&1 | tee -a $log; done
-)
-EOF
-)
-
-  screenKill $screenName
-  screen -dmS "$screenName" bash -c "$fullBatch"
-done
-
-# for infinity
-tail -f /dev/null
+#
+#MY_PID=$$
+#echo "> using ${GPU_COUNT} gpus"
+#for ((i = 0; i < $GPU_COUNT; i++)); do
+#  echo "> GPU $i"
+#  screenName="miner$i"
+#  log="/app/log/feeless-gpu$i.log"
+#  deviceBatch="CUDA_VISIBLE_DEVICES=$i $batch"
+#  echo $deviceBatch
+#
+#  fullBatch=$(cat <<EOF
+#(
+#  ( while kill -0 $MY_PID 2>/dev/null; do sleep 1; done
+#    echo "GPU $i: parent died, shutting down miner..."
+#    kill \$\$ ) &
+#
+#  while true; do $deviceBatch 2>&1 | tee -a $log; done
+#)
+#EOF
+#)
+#
+#  screenKill $screenName
+#  screen -dmS "$screenName" bash -c "$fullBatch"
+#done
+#
+## for infinity
+#tail -f /dev/null
