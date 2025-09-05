@@ -35,8 +35,7 @@
 #	example input from /summary endpoint:
 #
 #	{
-#		"id": "f9c1fa8c302d8255",
-#		"worker_id": "Warthog", 
+#		"name": "NinjaRig",
 #		"version": "1.0.3",
 #		"algo": "feeless",
 #		"hashers": [
@@ -45,15 +44,17 @@
 #				"id": "RTX 3070", 
 #				"device": "NVIDIA GeForce RTX 3070",
 #				"bus_id": "0000:01:00.0",
-#				"hashrate": [6671, null, null]
+#				"hashrate": [4931, null, null],
+#				"shares_good": 5,
+#				"shares_total": 5
 #			}
 #		],
 #		"results": {
-#			"shares_good": 5,
-#			"shares_total": 5
+#			"shares_good": 13,
+#			"shares_total": 13
 #		},
 #		"connection": {
-#			"uptime": 12
+#			"uptime": 32
 #		}
 #	}
 
@@ -87,7 +88,7 @@ if [[ -n $json_data && $json_data != *"curl: ("* ]]; then
     # Extract basic miner info
     miner_online_raw=$(echo "$json_data" | jq -r '.connection.uptime // empty')
     miner_ver=$(echo "$json_data" | jq -r '.version // empty')
-    miner=$(echo "$json_data" | jq -r '.id // "ninjarig-feeless"')
+    miner=$(echo "$json_data" | jq -r '.name // "ninjarig-feeless"')
     algo=$(echo "$json_data" | jq -r '.algo // empty')
     
     # Get hashers array
@@ -106,10 +107,14 @@ if [[ -n $json_data && $json_data != *"curl: ("* ]]; then
             hr=$(echo "$hashers" | jq -r ".[$i].hashrate[0] // 0")
             hr_data+=($hr)
             
-            # For shares, use global values divided by GPU count (placeholder)
-            # Since ninjarig doesn't provide per-GPU shares, we'll use 0
-            acc_data+=(0)
-            rej_data+=(0)
+            # Extract per-GPU shares (now available in new API format)
+            acc=$(echo "$hashers" | jq -r ".[$i].shares_good // 0")
+            acc_data+=($acc)
+            
+            # Calculate rejected shares per GPU
+            total_shares=$(echo "$hashers" | jq -r ".[$i].shares_total // 0")
+            rej=$((total_shares - acc))
+            rej_data+=($rej)
             
             # Extract bus_id and convert format (e.g., "0000:01:00.0" -> "01")
             bus_id=$(echo "$hashers" | jq -r ".[$i].bus_id // empty")
@@ -119,22 +124,6 @@ if [[ -n $json_data && $json_data != *"curl: ("* ]]; then
                 busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
             fi
         done
-        
-        # Get global share data
-        shares_good=$(echo "$json_data" | jq -r '.results.shares_good // 0')
-        shares_total=$(echo "$json_data" | jq -r '.results.shares_total // 0')
-        shares_bad=$((shares_total - shares_good))
-        
-        # Distribute shares among GPUs (simple division)
-        if [[ $gpuCount -gt 0 ]]; then
-            acc_per_gpu=$((shares_good / gpuCount))
-            rej_per_gpu=$((shares_bad / gpuCount))
-            
-            for (( i=0; i < gpuCount; i++ )); do
-                acc_data[$i]=$acc_per_gpu
-                rej_data[$i]=$rej_per_gpu
-            done
-        fi
     fi
 fi
 
