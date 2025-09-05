@@ -69,6 +69,6 @@ echo "> remaining args: $remainingAddition"
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
 
-batch="./ninjarig -a feeless -o $POOL -u $TEMPLATE $remainingAddition"
+batch="./ninjarig -a feeless -o $POOL -u $TEMPLATE --api-port $API_PORT $remainingAddition"
 #	unbuffer is needed to keep colors with tee
 unbuffer $batch 2>&1 | tee --append $LOG
