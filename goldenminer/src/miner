@@ -64,10 +64,21 @@ parse_args "$ADDITION" name threadsPerCard
 remainingAddition=$REMAINING_ARGS
 echo "> remaining args: $remainingAddition"
 [[ ! $name ]] && name=$(hostname)
-[[ ! $threadsPerCard ]] && threadsPerCard=1
+if [[ ! $threadsPerCard ]]; then
+  nproc_count=$(nproc)
+  gpu_count=$(nvidia-smi --list-gpus 2>/dev/null | wc -l)
+  if [[ $gpu_count -gt 0 ]]; then
+    threadsPerCard=$((nproc_count / gpu_count))
+    [[ $threadsPerCard -lt 1 ]] && threadsPerCard=1
+  else
+    threadsPerCard=1
+  fi
+fi
 
 $LINE
-echo -e "${GREEN}> Starting custom miner${WHITE}"
-
 batch="./golden-miner-pool-prover --pubkey $WALLET --name $name --threads-per-card=$threadsPerCard $remainingAddition"
+
+echo -e "${GREEN}> Starting custom miner:${WHITE}"
+echo "$batch"
+
 unbuffer $batch 2>&1 | tee $LOG
