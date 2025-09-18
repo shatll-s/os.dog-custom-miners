@@ -37,10 +37,32 @@ CFG_FILENAME="miner.cfg"
 
 dirname=$(dirname "$0")
 [[ -f "$dirname/$CFG_FILENAME" ]] && . $dirname/$CFG_FILENAME
+. $dirname/utils.sh
 
 LOG_FILE="/dog/log/goldenminer.log"
 GPU_STATS="/run/dog/gpuStats"
-gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+total_gpus=$(jq '.gpu | length' < "$GPU_STATS")
+
+# Parse devices from ADDITION variable
+REMAINING_ARGS=""
+parse_args "$ADDITION" devices
+devices_from_addition=$devices
+
+# Get visible devices from ADDITION, environment, or use all GPUs
+if [[ -n "$devices_from_addition" ]]; then
+    IFS=',' read -ra visible_devices <<< "$devices_from_addition"
+    gpuCount=${#visible_devices[@]}
+elif [[ -n "$CUDA_VISIBLE_DEVICES" ]]; then
+    IFS=',' read -ra visible_devices <<< "$CUDA_VISIBLE_DEVICES"
+    gpuCount=${#visible_devices[@]}
+else
+    # Use all available GPUs
+    gpuCount=$total_gpus
+    visible_devices=()
+    for (( i=0; i < total_gpus; i++ )); do
+        visible_devices+=($i)
+    done
+fi
 
 busid_json='[]'
 declare -a hr_data=( )
@@ -56,10 +78,14 @@ for (( i=0; i < gpuCount; i++ )); do
 done
 
 for (( i=0; i < gpuCount; i++ )); do
-    busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
+    # Get real GPU index from visible_devices array
+    real_gpu_idx=${visible_devices[$i]}
+
+    # Get busid for the real GPU index
+    busid=$(jq -r ".gpu[$real_gpu_idx].b" < "$GPU_STATS")
     busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
 
-    # Extract hashrate for Card-$i from log
+    # Extract hashrate for Card-$i from log (miner uses 0-based indexing for visible cards)
     rawHr=$(tail -n 200 $LOG_FILE | grep "Card-$i speed:" | tail -1 | awk '{print $5}')
     if [[ -n "$rawHr" && "$rawHr" != "0" ]]; then
         # Use raw p/s value
