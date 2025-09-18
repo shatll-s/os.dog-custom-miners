@@ -1,0 +1,187 @@
+#!/bin/bash
+
+####################################################################################
+###
+### NOCK goldenminer
+### os.dog integration: @osdog
+###
+####################################################################################
+
+#	example
+#
+#	{
+#		"miner":"qubitcoin-miner",
+#		"algo":"qhash",
+#		"online":"1707474764",
+#		"total_hr":"71842910",
+#		"total_share":"1",
+#		"total_badshare":"0",
+#		"ver":"0.68.1",
+#		"temp":[31,28,29,29,31,29,30,30],
+#		"temp2":[38,35,35,35,37,34,37,37],
+#		"temp3":[0,0,0,0,0,0,0,0],
+#		"fan":[45,45,44,45,44,44,45,46],
+#		"hr":[11580000,27740000,0,0,2990000,0,22650000,6880000],
+#		"share":[0,1,0,0,0,0,0,0],
+#		"badshare":[0,0,0,0,0,0,0,0],
+#		"invshare":[0,0,0,0,0,0,0,0],
+#		"busid":["01","04","05","07","08","09","0a","0b"],
+#		"coin":"QBC"
+#	}
+
+#	Updated for NinjaRig-Feeless JSON API format
+#	Uses HTTP GET request to localhost:$API_PORT/summary
+#
+#	example input from /summary endpoint:
+#
+#	{
+#		"name": "NinjaRig",
+#		"version": "1.0.3",
+#		"algo": "feeless",
+#		"hashers": [
+#			{
+#				"type": "GPU",
+#				"id": "RTX 3070", 
+#				"device": "NVIDIA GeForce RTX 3070",
+#				"bus_id": "0000:01:00.0",
+#				"hashrate": [4931, null, null],
+#				"shares_good": 5,
+#				"shares_total": 5
+#			}
+#		],
+#		"results": {
+#			"shares_good": 13,
+#			"shares_total": 13
+#		},
+#		"connection": {
+#			"uptime": 32
+#		}
+#	}
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+
+dirname=$(dirname "$0")
+[[ -f "$dirname/$CFG_FILENAME" ]] && . $dirname/$CFG_FILENAME
+
+# GPU count will be determined from API response
+gpuCount=0
+
+busid_json='[]'
+declare -a hr_data=( )
+declare -a acc_data=( )
+declare -a rej_data=( )
+
+API_TIMEOUT=2
+
+miner_online_raw=
+miner_ver=
+miner=
+algo=
+
+# Get summary data from JSON API
+json_data=$(curl -s --connect-timeout $API_TIMEOUT localhost:$API_PORT/summary 2>/dev/null)
+if [[ -n $json_data && $json_data != *"curl: ("* ]]; then
+    # Extract basic miner info
+    miner_online_raw=$(echo "$json_data" | jq -r '.connection.uptime // empty')
+    miner_ver=$(echo "$json_data" | jq -r '.version // empty')
+    miner=$(echo "$json_data" | jq -r '.name // "ninjarig-feeless"')
+    algo=$(echo "$json_data" | jq -r '.algo // empty')
+    
+    # Get hashers array
+    hashers=$(echo "$json_data" | jq -r '.hashers // []')
+    gpuCount=$(echo "$hashers" | jq 'length')
+    
+    if [[ $gpuCount -gt 0 ]]; then
+        # Initialize arrays
+        hr_data=()
+        acc_data=()
+        rej_data=()
+        
+        # Process each hasher
+        for (( i=0; i < gpuCount; i++ )); do
+            # Extract hashrate (first element of hashrate array)
+            hr=$(echo "$hashers" | jq -r ".[$i].hashrate[0] // 0")
+            hr_data+=($hr)
+            
+            # Extract per-GPU shares (now available in new API format)
+            acc=$(echo "$hashers" | jq -r ".[$i].shares_good // 0")
+            acc_data+=($acc)
+            
+            # Calculate rejected shares per GPU
+            total_shares=$(echo "$hashers" | jq -r ".[$i].shares_total // 0")
+            rej=$((total_shares - acc))
+            rej_data+=($rej)
+            
+            # Extract bus_id and convert format (e.g., "0000:01:00.0" -> "01")
+            bus_id=$(echo "$hashers" | jq -r ".[$i].bus_id // empty")
+            if [[ -n $bus_id && $bus_id =~ :([0-9a-fA-F][0-9a-fA-F]): ]]; then
+                busid="${BASH_REMATCH[1]}"
+                busid=$(echo "$busid" | tr '[:upper:]' '[:lower:]')
+                busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
+            fi
+        done
+    fi
+fi
+
+# Handle case when no GPU data is available
+if (( gpuCount == 0 )); then
+    hr_json='[]'
+    acc_json='[]'
+    rej_json='[]'
+else
+    hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+    acc_json=$(printf '%s\n' "${acc_data[@]}" | jq -R . | jq -s .)
+    rej_json=$(printf '%s\n' "${rej_data[@]}" | jq -R . | jq -s .)
+fi
+
+# calculate total_hr
+totalHr=0
+for val in "${hr_data[@]}"; do
+    totalHr=$(echo "$totalHr + $val" | bc)
+done
+
+# calculate total shares
+totalAcc=0
+for val in "${acc_data[@]}"; do
+    totalAcc=$(echo "$totalAcc + $val" | bc)
+done
+
+# calculate total rejected shares
+totalRej=0
+for val in "${rej_data[@]}"; do
+    totalRej=$(echo "$totalRej + $val" | bc)
+done
+
+data=$(
+    jq -n \
+        --arg algo "$algo" \
+        --arg miner "$miner" \
+        --arg ver "$miner_ver" \
+        --argjson busid "$busid_json" \
+        --argjson hr "$hr_json" \
+        --argjson share "$acc_json" \
+        --argjson badshare "$rej_json" \
+    '{
+        $miner,
+        $algo,
+        $ver,
+        total_hr: "'"$totalHr"'",
+        total_share: "'"$totalAcc"'",
+        total_badshare: "'"$totalRej"'",
+        busid: $busid,
+        hr: $hr,
+        share: $share,
+        badshare: $badshare
+    }'
+)
+
+if [[ ! -z $miner_online_raw ]]; then
+  online=$(date --date "-$miner_online_raw sec" +%s)
+  data=`jq ". += {\"online\": $online}" <<< "$data"`
+fi
+
+echo "$data" | jq -c
