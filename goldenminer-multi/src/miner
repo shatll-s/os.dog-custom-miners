@@ -71,7 +71,7 @@ for ((i = 0; i < gpu_count; i++)); do
   if [[ -n "$threadsPerCard" ]]; then
     echo "> Using threadsPerCard=$threadsPerCard for GPU $gpu_device"
     # Get GPU memory for this specific device and validate threadsPerCard
-    gpu_memory_mb=$(CUDA_VISIBLE_DEVICES=$gpu_device nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null)
+    gpu_memory_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits -i $gpu_device 2>/dev/null)
     if [[ $gpu_memory_mb ]]; then
       # Calculate max threads based on 1.05 GB per thread
       # 1.05 GB = 1075 MB, so max_threads = gpu_memory_mb / 1075
