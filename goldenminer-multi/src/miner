@@ -68,7 +68,8 @@ for ((i = 0; i < gpu_count; i++)); do
   gpu_device=${device_array[i]}
 
   # Use threadsPerCard if provided, otherwise calculate threads
-  if [[ $threadsPerCard ]]; then
+  if [[ -n "$threadsPerCard" ]]; then
+    echo "> Using threadsPerCard=$threadsPerCard for GPU $gpu_device"
     # Get GPU memory for this specific device and validate threadsPerCard
     gpu_memory_mb=$(CUDA_VISIBLE_DEVICES=$gpu_device nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null)
     if [[ $gpu_memory_mb ]]; then
