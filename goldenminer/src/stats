@@ -39,26 +39,29 @@ dirname=$(dirname "$0")
 [[ -f "$dirname/$CFG_FILENAME" ]] && . $dirname/$CFG_FILENAME
 . $dirname/utils.sh
 
+LOG_FILE="/dog/log/goldenminer.log"
 GPU_STATS="/run/dog/gpuStats"
 total_gpus=$(jq '.gpu | length' < "$GPU_STATS")
 
-# Parse devices from ADDITION variable - same logic as miner script
+# Parse devices from ADDITION variable
 REMAINING_ARGS=""
 parse_args "$ADDITION" devices
 devices_from_addition=$devices
 
-# Determine GPU count and device list - same logic as miner script
-if [[ $devices_from_addition ]]; then
-  # Parse devices parameter to get GPU count and device array
-  IFS=',' read -ra visible_devices <<< "$devices_from_addition"
-  gpuCount=${#visible_devices[@]}
+# Get visible devices from ADDITION, environment, or use all GPUs
+if [[ -n "$devices_from_addition" ]]; then
+    IFS=',' read -ra visible_devices <<< "$devices_from_addition"
+    gpuCount=${#visible_devices[@]}
+elif [[ -n "$CUDA_VISIBLE_DEVICES" ]]; then
+    IFS=',' read -ra visible_devices <<< "$CUDA_VISIBLE_DEVICES"
+    gpuCount=${#visible_devices[@]}
 else
-  # Auto-detect all GPUs if no devices specified
-  gpuCount=$(gpu-detect nvidia)
-  visible_devices=()
-  for ((i = 0; i < gpuCount; i++)); do
-    visible_devices+=($i)
-  done
+    # Use all available GPUs
+    gpuCount=$total_gpus
+    visible_devices=()
+    for (( i=0; i < total_gpus; i++ )); do
+        visible_devices+=($i)
+    done
 fi
 
 busid_json='[]'
@@ -82,16 +85,11 @@ for (( i=0; i < gpuCount; i++ )); do
     busid=$(jq -r ".gpu[$real_gpu_idx].b" < "$GPU_STATS")
     busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
 
-    # Extract hashrate from the specific GPU log file
-    log_file="/dog/log/goldenminer${real_gpu_idx}.log"
-    if [[ -f "$log_file" ]]; then
-        # Look for hashrate in the specific GPU log file
-        # The miner outputs "Card-0 speed:" in each individual log since each process sees only one card
-        rawHr=$(tail -n 200 "$log_file" | grep "Card-0 speed:" | tail -1 | awk '{print $5}')
-        if [[ -n "$rawHr" && "$rawHr" != "0" ]]; then
-            # Use raw p/s value
-            hr_data[$i]=$(awk "BEGIN {printf \"%.2f\", $rawHr}")
-        fi
+    # Extract hashrate for Card-$i from log (miner uses 0-based indexing for visible cards)
+    rawHr=$(tail -n 200 $LOG_FILE | grep "Card-$i speed:" | tail -1 | awk '{print $5}')
+    if [[ -n "$rawHr" && "$rawHr" != "0" ]]; then
+        # Use raw p/s value
+        hr_data[$i]=$(awk "BEGIN {printf \"%.2f\", $rawHr}")
     fi
 done
 
