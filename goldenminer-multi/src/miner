@@ -1,0 +1,144 @@
+#!/bin/bash
+####################################################################################
+###
+### NOCK goldenminer
+### os.dog integration: @osdog
+###
+####################################################################################
+. /dog/colors
+
+cd "$(dirname "$0")" || exit
+. ./utils.sh
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+#	custom package body
+####################################################################################
+
+echo "> additional args: $ADDITION"
+REMAINING_ARGS=""
+parse_args "$ADDITION" name threadsPerCard devices reserved_cores
+remainingAddition=$REMAINING_ARGS
+echo "> remaining args: $remainingAddition"
+
+[[ ! $name ]] && name=$(hostname)
+[ -z "$reserved_cores" ] && reserved_cores=0
+
+# Determine GPU count and device list
+if [[ $devices ]]; then
+  # Parse devices parameter to get GPU count and device array
+  IFS=',' read -ra device_array <<< "$devices"
+  gpu_count=${#device_array[@]}
+  echo "> using specified devices: $devices (${gpu_count} GPUs)"
+else
+  # Auto-detect all GPUs if no devices specified
+  gpu_count=$(gpu-detect nvidia)
+  device_array=()
+  for ((i = 0; i < gpu_count; i++)); do
+    device_array+=("$i")
+  done
+  echo "> auto-detected ${gpu_count} GPUs"
+fi
+
+$LINE
+echo -e "${GREEN}> Starting custom miner:${WHITE}"
+
+MY_PID=$$
+total_cores=$(nproc)
+usable_cores=$((total_cores - reserved_cores))
+base_threads=$((usable_cores / gpu_count))
+extra_threads=$((usable_cores % gpu_count))
+
+echo "> using ${gpu_count} gpus with ${usable_cores} usable cores (${total_cores} total - ${reserved_cores} reserved)"
+
+# Calculate CPU core ranges for each GPU
+base_cores_per_gpu=$((usable_cores / gpu_count))
+extra_cores=$((usable_cores % gpu_count))
+[[ $base_cores_per_gpu -lt 1 ]] && base_cores_per_gpu=1
+
+for ((i = 0; i < gpu_count; i++)); do
+  # Get actual GPU device ID
+  gpu_device=${device_array[i]}
+
+  # Use threadsPerCard if provided, otherwise calculate threads
+  if [[ $threadsPerCard ]]; then
+    # Get GPU memory for this specific device and validate threadsPerCard
+    gpu_memory_mb=$(CUDA_VISIBLE_DEVICES=$gpu_device nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null)
+    if [[ $gpu_memory_mb ]]; then
+      # Calculate max threads based on 1.05 GB per thread
+      # 1.05 GB = 1075 MB, so max_threads = gpu_memory_mb / 1075
+      max_threads=$((gpu_memory_mb / 1075))
+
+      if (( threadsPerCard > max_threads )); then
+        echo "> WARNING: GPU $gpu_device has ${gpu_memory_mb}MB memory, max recommended threads: $max_threads (1.05GB per thread)"
+        echo "> Reducing threadsPerCard from $threadsPerCard to $max_threads for GPU $gpu_device"
+        threads=$max_threads
+      else
+        threads=$threadsPerCard
+      fi
+    else
+      echo "> WARNING: Could not detect GPU $gpu_device memory, using threadsPerCard=$threadsPerCard without validation"
+      threads=$threadsPerCard
+    fi
+  else
+    threads=$base_threads
+    if (( i < extra_threads )); then
+      threads=$((threads + 1))
+    fi
+    if (( threads < 1 )); then
+      threads=1
+    fi
+  fi
+
+  # Calculate CPU core range for this GPU
+  cores_for_this_gpu=$base_cores_per_gpu
+  if (( i < extra_cores )); then
+    cores_for_this_gpu=$((cores_for_this_gpu + 1))
+  fi
+
+  # Calculate start core based on previous GPUs' core allocations
+  start_core=$reserved_cores
+  for (( j = 0; j < i; j++ )); do
+    prev_cores=$base_cores_per_gpu
+    if (( j < extra_cores )); then
+      prev_cores=$((prev_cores + 1))
+    fi
+    start_core=$((start_core + prev_cores))
+  done
+
+  end_core=$((start_core + cores_for_this_gpu - 1))
+
+  echo "> GPU $gpu_device → threads=$threads, CPU cores=$start_core-$end_core"
+
+  screenName="goldenminer$gpu_device"
+  log="/dog/log/goldenminer$gpu_device.log"
+
+  # Build the command with CPU affinity and GPU assignment
+  batch="CUDA_VISIBLE_DEVICES=$gpu_device taskset -c $start_core-$end_core ./golden-miner-pool-prover --pubkey $WALLET --name ${name}_gpu${gpu_device} --threads-per-card=$threads $remainingAddition"
+
+  fullBatch=$(cat <<EOF
+(
+  ( while kill -0 $MY_PID 2>/dev/null; do sleep 1; done
+    echo "GPU $gpu_device: parent died, shutting down miner..."
+    kill \$\$ ) &
+
+  while true; do $batch 2>&1 | tee -a $log; done
+)
+EOF
+)
+
+  echo "$batch"
+
+  screen-kill $screenName
+  screen -dmS "$screenName" bash -c "$fullBatch"
+done
+
+# for infinity
+tail -f /dev/null
