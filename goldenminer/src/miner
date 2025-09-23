@@ -26,7 +26,7 @@ LOG="/dog/log/goldenminer.log"
 
 echo "> additional args: $ADDITION"
 REMAINING_ARGS=""
-parse_args "$ADDITION" name threadsPerCard devices
+parse_args "$ADDITION" name threadsPerCard devices variables
 remainingAddition=$REMAINING_ARGS
 echo "> remaining args: $remainingAddition"
 
@@ -50,6 +50,18 @@ fi
 
 $LINE
 batch="./golden-miner-pool-prover --pubkey $WALLET --name $name --threads-per-card=$threadsPerCard $remainingAddition"
+
+# Export variables if provided
+if [[ -n "$variables" ]]; then
+  echo "> Exporting variables: $variables"
+  IFS=',' read -ra vars <<< "$variables"
+  for var in "${vars[@]}"; do
+    if [[ "$var" == *"="* ]]; then
+      echo "  export \"$var\""
+      export "$var"
+    fi
+  done
+fi
 
 echo -e "${GREEN}> Starting custom miner:${WHITE}"
 if [[ $devices ]]; then
