@@ -25,6 +25,12 @@ parse_args() {
                 ((i++)) # skip the value
                 is_key=1
                 break
+            elif [[ "$token" == "--$key="* ]]; then
+                local var_name="${key//-/_}"
+                local value="${token#--$key=}"
+                export "${var_name}=$value"
+                is_key=1
+                break
             fi
         done
 
