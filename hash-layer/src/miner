@@ -118,12 +118,6 @@ echo -e "${GREEN}> Total RAM: ${TOTAL_RAM_MB}MB, Node.js limit: ${MEMORY_LIMIT}M
 ####################################################################################
 cd $MINER_DIR
 
-# Compile TypeScript if needed
-if [[ ! -d "dist" ]] || [[ src/ParallelMiner.ts -nt dist/ParallelMiner.js ]]; then
-    echo -e "> Compiling TypeScript..."
-    npx tsc
-fi
-
 $LINE
 echo -e "${GREEN}> Starting Hash Layer CPU Miner${WHITE}"
 
@@ -131,5 +125,5 @@ echo -e "${GREEN}> Starting Hash Layer CPU Miner${WHITE}"
 WORKER_THREADS=$(grep WORKER_THREADS .env | cut -d= -f2)
 [[ ! $WORKER_THREADS ]] && WORKER_THREADS=$(nproc)
 
-batch="node --max-old-space-size=$MEMORY_LIMIT dist/ParallelMiner.js $WORKER_THREADS"
+batch="node --max-old-space-size=$MEMORY_LIMIT ParallelMiner.js $WORKER_THREADS"
 unbuffer $batch 2>&1 | tee --append $LOG
