@@ -1,0 +1,135 @@
+#!/bin/bash
+####################################################################################
+###
+### Hash Layer CPU Miner
+### os.dog integration
+###
+####################################################################################
+. /dog/colors
+cd `dirname $0`
+
+#	global variables
+####################################################################################
+#	The file contains: MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+MINER_DIR=files
+LOG="/dog/log/hash-layer.log"
+
+#	parse args function
+####################################################################################
+parse_args() {
+    local args="$1"
+    shift
+    local keys=("$@")
+
+    read -ra tokens <<< "$args"
+    local filtered=()
+
+    for ((i = 0; i < ${#tokens[@]}; i++)); do
+        local token="${tokens[i]}"
+        local is_key=0
+
+        for key in "${keys[@]}"; do
+            if [[ "$token" == "--$key" ]]; then
+                local var_name="${key//-/_}"
+                if (( i + 1 < ${#tokens[@]} )); then
+                    local value="${tokens[$((i+1))]}"
+                    export "${var_name}=$value"
+                else
+                    export "${var_name}="
+                fi
+                ((i++)) # skip the value
+                is_key=1
+                break
+            fi
+        done
+
+        if [[ $is_key -eq 0 ]]; then
+            filtered+=("${token}")
+        fi
+    done
+
+    REMAINING_ARGS="${filtered[*]}"
+}
+
+#	install dependencies
+####################################################################################
+./install.sh
+
+#	parse arguments from ADDITION
+####################################################################################
+echo "> additional args: $ADDITION"
+REMAINING_ARGS=""
+parse_args "$ADDITION" rpc-provider threads
+remainingAddition=$REMAINING_ARGS
+echo "> parsed: rpc_provider=$rpc_provider threads=$threads"
+echo "> remaining args: $remainingAddition"
+
+#	create .env files
+####################################################################################
+# .env.secrets with mnemonic
+cat > $MINER_DIR/.env.secrets <<EOF
+MNEMONIC="$TEMPLATE"
+EOF
+chmod 600 $MINER_DIR/.env.secrets
+
+# .env with public config
+RPC=${rpc_provider:-${CUSTOM_URL:-https://sui-rpc.publicnode.com}}
+cat > $MINER_DIR/.env <<EOF
+RPC_PROVIDER=$RPC
+HASH_CONTRACT=0x5a583ea201476bdf01162c78ef43a4e30172958755eb9aac6a0da0ec2ef0e295
+CHAIN_OBJECT=0x172264cf25f28ef2b7ad8a145b0e5d87a3521dc91fd9856741f116be71e8a1a7
+CHAIN_OBJECT_TYPE=0x5a583ea201476bdf01162c78ef43a4e30172958755eb9aac6a0da0ec2ef0e295::hash_layer::ChainState
+BALANCE_KEEPER=0x005d29396c8ab8277acf92619ba953f11feafda781f09dafa8244dddd692a543
+NFT_URL=https://bafkreiamdpa3umw3zkwu5wgszv4og3g74sptejymuiuwwuv45537gxonri.ipfs.w3s.link
+EOF
+
+# Add worker threads if specified
+[[ $threads ]] && echo "WORKER_THREADS=$threads" >> $MINER_DIR/.env
+
+#	setup Node.js
+####################################################################################
+nvmVersion=$(nvm --version 2>/dev/null)
+if [[ ! $nvmVersion ]]; then
+	echo -e "> Install nvm"
+	curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+	export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+	[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+	source ~/.bashrc
+fi
+
+NODE_MAJOR=18
+nvm use $NODE_MAJOR > /dev/null 2>&1
+
+#	calculate memory limit
+####################################################################################
+TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+TOTAL_RAM_MB=$((TOTAL_RAM_KB / 1024))
+MEMORY_LIMIT=$((TOTAL_RAM_MB - 2048))
+[[ $MEMORY_LIMIT -lt 1024 ]] && MEMORY_LIMIT=1024
+
+echo -e "${GREEN}> Total RAM: ${TOTAL_RAM_MB}MB, Node.js limit: ${MEMORY_LIMIT}MB${WHITE}"
+
+#	start miner
+####################################################################################
+cd $MINER_DIR
+
+# Compile TypeScript if needed
+if [[ ! -d "dist" ]] || [[ src/ParallelMiner.ts -nt dist/ParallelMiner.js ]]; then
+    echo -e "> Compiling TypeScript..."
+    npx tsc
+fi
+
+$LINE
+echo -e "${GREEN}> Starting Hash Layer CPU Miner${WHITE}"
+
+# Get worker threads (from env or auto-detect)
+WORKER_THREADS=$(grep WORKER_THREADS .env | cut -d= -f2)
+[[ ! $WORKER_THREADS ]] && WORKER_THREADS=$(nproc)
+
+batch="node --max-old-space-size=$MEMORY_LIMIT dist/ParallelMiner.js $WORKER_THREADS"
+unbuffer $batch 2>&1 | tee --append $LOG

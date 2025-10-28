@@ -1,0 +1,63 @@
+#!/bin/bash
+####################################################################################
+###
+### Hash Layer - Stats
+###
+####################################################################################
+
+algo="blake2b"
+miner="hash-layer"
+EXEC_FILE="node"
+
+#	global variables
+####################################################################################
+CFG_FILENAME="miner.cfg"
+dirname=$(dirname "$0")
+. $dirname/$CFG_FILENAME
+
+LOG_FILE="/dog/log/hash-layer.log"
+GPU_STATS="/run/dog/gpuStats"
+
+# Get GPU info for busid
+gpuCount=$(jq '.gpu | length' < "$GPU_STATS" 2>/dev/null || echo 0)
+busid_json='[]'
+
+if [[ $gpuCount -gt 0 ]]; then
+    for (( i=0; i < gpuCount; i++ )); do
+        busid=$(jq -r ".gpu[$i].b" < "$GPU_STATS")
+        busid_json=$(jq ". += [\"$busid\"]" <<< "$busid_json")
+    done
+fi
+
+# Parse hashrate from log (example: "Total: 1234.56 H/s")
+khs=$(tail -n 50 $LOG_FILE 2>/dev/null | grep -i "H/s" | tail -1 | grep -oP '\d+(\.\d+)?' | head -1)
+totalHr=$(echo "$khs" | jq -R . | jq -s 'map(tonumber)[0] // 0')
+
+# Get online time
+online_raw=$(ps -C $EXEC_FILE -o etimes= | awk '{print $1}' | head -1)
+if [[ ! -z $online_raw ]]; then
+  online=$(date --date "-$online_raw sec" +%s)
+fi
+
+# Get version
+ver="0.6"
+
+# Build JSON output
+data=$(
+    jq -n \
+        --arg algo "$algo" \
+        --arg miner "$miner" \
+        --argjson busid "$busid_json" \
+        --arg online "$online" \
+        --arg ver "$ver" \
+    '{
+        $miner,
+        $algo,
+        total_hr: "'"$totalHr"'",
+        $busid,
+        $online,
+        $ver
+    }'
+)
+
+echo "$data" | jq -c
