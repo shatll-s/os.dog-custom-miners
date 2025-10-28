@@ -1,0 +1,48 @@
+{
+    "algo": "feeless",
+    "api": {
+        "port": 0,
+        "access-token": null,
+        "id": null,
+        "worker-id": null,
+        "ipv6": false,
+        "restricted": true
+    },
+    "autosave": true,
+    "background": false,
+    "colors": true,
+    "cpu-threads": 0,
+    "cpu-optimization": null,
+    "cpu-affinity": null,
+    "priority": null,
+    "donate-level": 5,
+    "log-file": null,
+    "pools": [
+        {
+            "url": "ninjaraider.com:44444",
+            "user": "02a860bfa1551a2e67deab6d5bbb87b5d71b601a6e53ca95939be0217a44fe5ad2.HomePC",
+            "pass": null,
+            "rig-id": null,
+            "nicehash": false,
+            "keepalive": false,
+            "variant": "feeless",
+            "enabled": true,
+            "tls": false,
+            "tls-fingerprint": null
+        }
+    ],
+    "print-time": 60,
+    "retries": 5,
+    "retry-pause": 5,
+    "user-agent": null,
+    "syslog": false,
+    "watch": true,
+    "use-gpu": [
+        "CUDA"
+    ],
+    "gpu-intensity": [
+        50.0
+    ],
+    "gpu-filter": [],
+    "gpu-batch-size": 255
+}
