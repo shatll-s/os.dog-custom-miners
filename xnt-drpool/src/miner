@@ -1,12 +1,13 @@
 #!/bin/bash
 ####################################################################################
 ###
-### neptune
+### xnt-drpool
 ### os.dog integration: @osdog
 ###
 ####################################################################################
 . /dog/colors
 cd `dirname $0`
+. ./utils.sh
 
 #	global variables, don`t change it
 ####################################################################################
@@ -22,18 +23,32 @@ LOG="/dog/log/xnt-drpool.log"
 #	custom package body
 ####################################################################################
 
-##	this miner need many dependencies, so install script is placed in individual file
-##	if the miner is builded or you don`t need to install ton of dependecies, you can
-##	remove this string or install something right here
-#./install.sh
+echo "> additional args: $ADDITION"
+REMAINING_ARGS=""
+parse_args "$ADDITION" devices
+remainingAddition=$REMAINING_ARGS
+echo "> remaining args: $remainingAddition"
 
-args=$ADDITION
+# Determine GPU list
+if [[ $devices ]]; then
+  gpu_list=$devices
+else
+  # Get NVIDIA GPU count from gpuStats
+  gpu_count=$(cat /run/dog/gpuStats | jq '[.gpu[] | select(.brand == "N")] | length')
+  if [[ $gpu_count -gt 0 ]]; then
+    # Generate list: 0,1,2,3...
+    gpu_list=$(seq -s',' 0 $((gpu_count - 1)))
+  else
+    gpu_list="0"
+  fi
+fi
+
+echo "> using GPUs: $gpu_list"
 
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"
+batch="./xntprover -p $POOL -w $TEMPLATE -g $gpu_list $remainingAddition"
 echo "$batch"
-#./dr_neptune_prover --pool stratum+tcp://neptune.drpool.io:30127 -w drpoolaccount.xxx
-batch="./xntprover -p $POOL -w $TEMPLATE $args"
 #	unbuffer is needed to keep colors with tee
 unbuffer $batch 2>&1 | tee --append $LOG
 

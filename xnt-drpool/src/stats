@@ -35,7 +35,7 @@ CFG_FILENAME="miner.cfg"
 dirname=$(dirname "$0")
 . $dirname/$CFG_FILENAME
 
-LOG_FILE="/dog/log/xnt.log"
+LOG_FILE="/dog/log/xnt-drpool.log"
 GPU_STATS="/run/dog/gpuStats"
 gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
 
@@ -61,8 +61,26 @@ done
 #hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
 # calculate total_hr
 
-khs=$(tail -n 100 $LOG_FILE |grep "Last 1m speed(KP/s)" | awk 'END {print}'| awk '{print $5}')
-totalHr=$(echo "$khs" | jq -R . | jq -s 'map(tonumber)[0]')
+# Parse Total 1m speed(M/s) from log, e.g.: |Total 1m speed(M/s)                                            49.808                |
+mhs=$(tail -n 100 $LOG_FILE | grep "Total 1m speed(M/s)" | awk 'END {print}' | awk '{print $4}')
+# Convert M/s to h/s (1 M/s = 1000000 h/s)
+if [[ -n "$mhs" && "$mhs" != "null" ]]; then
+  totalHr=$(echo "$mhs * 1000000" | bc -l | awk '{printf "%.0f", $0}')
+else
+  totalHr=0
+fi
+
+# Parse per-GPU hashrates from log, e.g.: |GPU0  1m speed(M/s)                                               6.2                |
+hr_json='[]'
+for (( i=0; i < gpuCount; i++ )); do
+  gpu_mhs=$(tail -n 100 $LOG_FILE | grep "GPU$i  1m speed(M/s)" | awk 'END {print}' | awk '{print $4}')
+  if [[ -n "$gpu_mhs" && "$gpu_mhs" != "null" ]]; then
+    gpu_hs=$(echo "$gpu_mhs * 1000000" | bc -l | awk '{printf "%.0f", $0}')
+  else
+    gpu_hs=0
+  fi
+  hr_json=$(jq ". += [$gpu_hs]" <<< "$hr_json")
+done
 
 online_raw=`ps -C $EXEC_FILE -o etimes= | awk '{print $1}' | tac | tail -n 1`
 if [[ ! -z $online_raw ]]; then
@@ -79,12 +97,14 @@ data=$(
         --arg algo "$algo" \
         --arg miner "$miner" \
         --argjson busid "$busid_json" \
+        --argjson hr "$hr_json" \
         --arg online "$online" \
         --arg ver "$ver" \
     '{
         $miner,
         $algo,
         total_hr: "'"$totalHr"'",
+        $hr,
         $busid,
         $online,
         $ver
