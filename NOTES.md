@@ -25,7 +25,7 @@ mv miner.tar.gz ../имя-майнера-X.X.tar.gz
 
 ## Адаптация нового майнера
 
-1. Скопировать `utils.sh` из goldenminer/src/
+1. Скопировать `utils.sh` из dogminer/src/
 2. В `miner`:
    - Подключить utils.sh: `. ./utils.sh`
    - Парсить нужные аргументы: `parse_args "$ADDITION" devices threadsPerCard ...`
