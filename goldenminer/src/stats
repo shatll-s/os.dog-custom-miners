@@ -67,7 +67,7 @@ fi
 busid_json='[]'
 declare -a hr_data=( )
 
-miner_ver="0.1.7+1"
+miner_ver="0.2.0"
 miner="goldenminer"
 algo="nock"
 EXEC_FILE="golden-miner-pool-prover"
