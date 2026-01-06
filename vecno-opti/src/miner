@@ -1,0 +1,60 @@
+#!/bin/bash
+####################################################################################
+###
+### Vecno-Miner GPU (vecno-opti)
+### os.dog integration: @osdog
+###
+####################################################################################
+. /dog/colors
+
+cd `dirname $0`
+. ./utils.sh
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+LOG="/dog/log/vecno-opti.log"
+
+#	custom package body
+####################################################################################
+
+echo "> additional args: $ADDITION"
+REMAINING_ARGS=""
+parse_args "$ADDITION" worker devices
+remainingAddition=$REMAINING_ARGS
+echo "> remaining args: $remainingAddition"
+
+# Parse POOL to get host and port
+# POOL format can be: stratum+tcp://host:port or host:port
+POOL_CLEAN=$(echo "$POOL" | sed 's|stratum+tcp://||' | sed 's|stratum://||')
+STRATUM_SERVER=$(echo "$POOL_CLEAN" | cut -d':' -f1)
+STRATUM_PORT=$(echo "$POOL_CLEAN" | cut -d':' -f2)
+
+# Default port if not specified
+[[ -z "$STRATUM_PORT" || "$STRATUM_PORT" == "$STRATUM_SERVER" ]] && STRATUM_PORT=3333
+
+# Worker name: from ADDITION or hostname
+[[ -z "$worker" ]] && worker=$(hostname)
+
+$LINE
+echo -e "${GREEN}> Starting Vecno-Miner GPU${WHITE}"
+echo "> Server: $STRATUM_SERVER:$STRATUM_PORT"
+echo "> Worker: $worker"
+echo "> Wallet: $TEMPLATE"
+
+batch="./vecno-miner --stratum-server $STRATUM_SERVER --stratum-port $STRATUM_PORT --stratum-worker $worker -a $TEMPLATE $remainingAddition"
+
+if [[ -n "$devices" ]]; then
+  echo "CUDA_VISIBLE_DEVICES=$devices $batch"
+  export CUDA_VISIBLE_DEVICES=$devices
+  unbuffer $batch 2>&1 | tee $LOG
+else
+  echo "$batch"
+  unbuffer $batch 2>&1 | tee $LOG
+fi
