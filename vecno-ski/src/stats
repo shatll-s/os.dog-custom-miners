@@ -8,9 +8,9 @@
 ####################################################################################
 
 #	Log format examples:
-#	312.74 Mhash/s | Accepted: 40 - Rejected: 0 | Up: 2m 10s | 0 CPU, 8 GPU
-#	GPU[#0 NVIDIA GeForce RTX 3070] 39.19 Mhash/s
-#	GPU[#1 NVIDIA GeForce RTX 3070] 39.92 Mhash/s
+#	306.83 Mhash/s | Accepted: 50 - Rejected: 0 | Up: 10m 40s | 0 CPU, 8 GPU
+#	  GPU[#0 NVIDIA GeForce RTX 3070] 39.19 Mhash/s
+#	  GPU[#1 NVIDIA GeForce RTX 3070] 39.92 Mhash/s
 
 #	global variables, don`t change it
 ####################################################################################
@@ -26,7 +26,7 @@ miner="vecno-ski"
 
 # Get version from log (if available)
 version=$(grep -oP 'version \K[0-9.]+' "$LOG" 2>/dev/null | tail -1)
-[[ -z "$version" ]] && version="0.2"
+[[ -z "$version" ]] && version="0.3"
 
 # Get GPU count from system stats
 gpuCount=0
@@ -37,30 +37,35 @@ if [[ -f "$GPU_STATS" ]]; then
 fi
 [[ -z "$gpuCount" || "$gpuCount" == "null" ]] && gpuCount=0
 
+# Strip ANSI escape codes from log
+strip_ansi() {
+    sed 's/\x1b\[[0-9;]*[a-zA-Z]//g; s/\x1b\][^\x07]*\x07//g; s/\r//g'
+}
+
 # Parse total hashrate and shares from last summary line
-# Format: 312.74 Mhash/s | Accepted: 40 - Rejected: 0 | Up: 2m 10s | 0 CPU, 8 GPU
-last_summary=$(grep -E '^[0-9.]+ [MKG]?hash/s \| Accepted:' "$LOG" 2>/dev/null | tail -1)
+# Format: 306.83 Mhash/s | Accepted: 50 - Rejected: 0 | Up: 10m 40s | 0 CPU, 8 GPU
+last_summary=$(cat "$LOG" 2>/dev/null | strip_ansi | grep -E '[0-9.]+ [MGK]?hash/s \| Accepted:' | tail -1)
 
 total_hr=0
 total_shares=0
 total_rejected=0
 
 if [[ -n "$last_summary" ]]; then
-    # Extract hashrate value (e.g., 312.74)
-    hr_value=$(echo "$last_summary" | grep -oP '^[0-9.]+')
-    # Extract unit (Mhash/s, Khash/s, hash/s)
-    hr_unit=$(echo "$last_summary" | grep -oP '^[0-9.]+ \K[A-Za-z/]+')
+    # Extract hashrate value and unit (e.g., "306.83 Mhash/s")
+    hr_match=$(echo "$last_summary" | grep -oE '[0-9.]+ [MGK]?hash/s' | head -1)
+    hr_value=$(echo "$hr_match" | awk '{print $1}')
+    hr_unit=$(echo "$hr_match" | awk '{print $2}')
 
     if [[ -n "$hr_value" ]]; then
         # Convert to h/s based on unit
         case "$hr_unit" in
-            Mhash/s|MH/s)
+            Mhash/s)
                 total_hr=$(echo "$hr_value * 1000000" | bc | cut -d'.' -f1)
                 ;;
-            Khash/s|KH/s)
+            Khash/s)
                 total_hr=$(echo "$hr_value * 1000" | bc | cut -d'.' -f1)
                 ;;
-            Ghash/s|GH/s)
+            Ghash/s)
                 total_hr=$(echo "$hr_value * 1000000000" | bc | cut -d'.' -f1)
                 ;;
             *)
@@ -77,28 +82,28 @@ if [[ -n "$last_summary" ]]; then
 fi
 
 # Parse per-GPU hashrates
-# Format: GPU[#0 NVIDIA GeForce RTX 3070] 39.19 Mhash/s
+# Format:   GPU[#0 NVIDIA GeForce RTX 3070] 39.19 Mhash/s
 declare -a hr_data=()
-declare -a share_data=()
 
 for (( i=0; i < gpuCount; i++ )); do
     # Get last hashrate line for this GPU
-    gpu_line=$(grep -E "GPU\[#$i " "$LOG" 2>/dev/null | tail -1)
+    gpu_line=$(cat "$LOG" 2>/dev/null | strip_ansi | grep -E "GPU\[#$i " | tail -1)
 
     gpu_hr=0
     if [[ -n "$gpu_line" ]]; then
-        hr_value=$(echo "$gpu_line" | grep -oP '\] \K[0-9.]+')
-        hr_unit=$(echo "$gpu_line" | grep -oP '\] [0-9.]+ \K[A-Za-z/]+')
+        hr_match=$(echo "$gpu_line" | grep -oE '[0-9.]+ [MGK]?hash/s')
+        hr_value=$(echo "$hr_match" | awk '{print $1}')
+        hr_unit=$(echo "$hr_match" | awk '{print $2}')
 
         if [[ -n "$hr_value" ]]; then
             case "$hr_unit" in
-                Mhash/s|MH/s)
+                Mhash/s)
                     gpu_hr=$(echo "$hr_value * 1000000" | bc | cut -d'.' -f1)
                     ;;
-                Khash/s|KH/s)
+                Khash/s)
                     gpu_hr=$(echo "$hr_value * 1000" | bc | cut -d'.' -f1)
                     ;;
-                Ghash/s|GH/s)
+                Ghash/s)
                     gpu_hr=$(echo "$hr_value * 1000000000" | bc | cut -d'.' -f1)
                     ;;
                 *)
@@ -109,16 +114,13 @@ for (( i=0; i < gpuCount; i++ )); do
     fi
 
     hr_data+=($gpu_hr)
-    share_data+=(0)  # Per-GPU shares not available in logs
 done
 
 # Build JSON arrays
 if (( gpuCount == 0 )); then
     hr_json='[]'
-    share_json='[]'
 else
     hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
-    share_json=$(printf '%s\n' "${share_data[@]}" | jq -R . | jq -s .)
 fi
 
 # Get online time from log file creation (birth time)
@@ -143,7 +145,6 @@ data=$(
         --arg ver "$version" \
         --argjson busid "$busid_json" \
         --argjson hr "$hr_json" \
-        --argjson share "$share_json" \
     '{
         $miner,
         $algo,
@@ -152,8 +153,7 @@ data=$(
         total_share: "'"$total_shares"'",
         total_badshare: "'"$total_rejected"'",
         busid: $busid,
-        hr: $hr,
-        share: $share
+        hr: $hr
     }'
 )
 
