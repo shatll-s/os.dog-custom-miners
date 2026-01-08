@@ -1,0 +1,153 @@
+#!/bin/bash
+
+####################################################################################
+###
+### Vecno-Miner GPU stats (vecno-ski)
+### os.dog integration: @osdog
+###
+####################################################################################
+
+#	Log format examples:
+#	09:45:01 [INFO] [10s] Hashrate: 21.06 Mhash/s | Shares: 0 | Blocks: 0
+#	09:45:01 [INFO] GPU #0 NVIDIA GeForce RTX 4060 Laptop GPU hashrate: 21.41 Mhash/s
+#	09:44:51 [INFO]                  Vecno-Miner GPU version 0.0.4
+
+#	global variables, don`t change it
+####################################################################################
+CFG_FILENAME="miner.cfg"
+dirname=$(dirname "$0")
+[[ -f "$dirname/$CFG_FILENAME" ]] && . $dirname/$CFG_FILENAME
+
+LOG="/dog/log/vecno-ski.log"
+GPU_STATS="/run/dog/gpuStats"
+
+algo="vecno"
+miner="vecno-ski"
+
+# Get version from log
+version=$(grep -oP 'Vecno-Miner GPU version \K[0-9.]+' "$LOG" 2>/dev/null | tail -1)
+[[ -z "$version" ]] && version="0.0.4"
+
+# Get GPU count from system stats
+gpuCount=0
+busid_json='[]'
+if [[ -f "$GPU_STATS" ]]; then
+    gpuCount=$(jq '.gpu | length' < "$GPU_STATS" 2>/dev/null)
+    busid_json=$(jq '[.gpu[].b]' < "$GPU_STATS" 2>/dev/null)
+fi
+[[ -z "$gpuCount" || "$gpuCount" == "null" ]] && gpuCount=0
+
+# Parse total hashrate and shares from last summary line
+# Format: [10s] Hashrate: 21.06 Mhash/s | Shares: 0 | Blocks: 0
+last_summary=$(grep -E '\[.*s\] Hashrate:' "$LOG" 2>/dev/null | tail -1)
+
+total_hr=0
+total_shares=0
+if [[ -n "$last_summary" ]]; then
+    # Extract hashrate value (e.g., 21.06)
+    hr_value=$(echo "$last_summary" | grep -oP 'Hashrate: \K[0-9.]+')
+    # Extract unit (Mhash/s, Khash/s, hash/s)
+    hr_unit=$(echo "$last_summary" | grep -oP 'Hashrate: [0-9.]+ \K[A-Za-z/]+')
+
+    if [[ -n "$hr_value" ]]; then
+        # Convert to h/s based on unit
+        case "$hr_unit" in
+            Mhash/s|MH/s)
+                total_hr=$(echo "$hr_value * 1000000" | bc | cut -d'.' -f1)
+                ;;
+            Khash/s|KH/s)
+                total_hr=$(echo "$hr_value * 1000" | bc | cut -d'.' -f1)
+                ;;
+            *)
+                total_hr=$(echo "$hr_value" | cut -d'.' -f1)
+                ;;
+        esac
+    fi
+
+    # Extract shares
+    total_shares=$(echo "$last_summary" | grep -oP 'Shares: \K[0-9]+')
+    [[ -z "$total_shares" ]] && total_shares=0
+fi
+
+# Parse per-GPU hashrates
+# Format: GPU #0 NVIDIA GeForce RTX 4060 Laptop GPU hashrate: 21.41 Mhash/s
+declare -a hr_data=()
+declare -a share_data=()
+
+for (( i=0; i < gpuCount; i++ )); do
+    # Get last hashrate line for this GPU
+    gpu_line=$(grep -E "GPU #$i .* hashrate:" "$LOG" 2>/dev/null | tail -1)
+
+    gpu_hr=0
+    if [[ -n "$gpu_line" ]]; then
+        hr_value=$(echo "$gpu_line" | grep -oP 'hashrate: \K[0-9.]+')
+        hr_unit=$(echo "$gpu_line" | grep -oP 'hashrate: [0-9.]+ \K[A-Za-z/]+')
+
+        if [[ -n "$hr_value" ]]; then
+            case "$hr_unit" in
+                Mhash/s|MH/s)
+                    gpu_hr=$(echo "$hr_value * 1000000" | bc | cut -d'.' -f1)
+                    ;;
+                Khash/s|KH/s)
+                    gpu_hr=$(echo "$hr_value * 1000" | bc | cut -d'.' -f1)
+                    ;;
+                *)
+                    gpu_hr=$(echo "$hr_value" | cut -d'.' -f1)
+                    ;;
+            esac
+        fi
+    fi
+
+    hr_data+=($gpu_hr)
+    share_data+=(0)  # Per-GPU shares not available in logs
+done
+
+# Build JSON arrays
+if (( gpuCount == 0 )); then
+    hr_json='[]'
+    share_json='[]'
+else
+    hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+    share_json=$(printf '%s\n' "${share_data[@]}" | jq -R . | jq -s .)
+fi
+
+# Get online time from log file creation (birth time)
+if [[ -f "$LOG" ]]; then
+    # Use birth time (%W) for when miner started
+    online=$(stat -c %W "$LOG" 2>/dev/null)
+    # Fallback to mtime if birth time not available (returns 0)
+    [[ "$online" == "0" || -z "$online" ]] && online=$(stat -c %Y "$LOG" 2>/dev/null)
+
+    # Check if miner is still active (log modified in last 60 seconds)
+    mtime=$(stat -c %Y "$LOG" 2>/dev/null)
+    now=$(date +%s)
+    if (( now - mtime > 60 )); then
+        online=""
+    fi
+fi
+
+data=$(
+    jq -n \
+        --arg algo "$algo" \
+        --arg miner "$miner" \
+        --arg ver "$version" \
+        --argjson busid "$busid_json" \
+        --argjson hr "$hr_json" \
+        --argjson share "$share_json" \
+    '{
+        $miner,
+        $algo,
+        $ver,
+        total_hr: "'"$total_hr"'",
+        total_share: "'"$total_shares"'",
+        busid: $busid,
+        hr: $hr,
+        share: $share
+    }'
+)
+
+if [[ -n "$online" ]]; then
+    data=$(jq ". += {\"online\": $online}" <<< "$data")
+fi
+
+echo "$data" | jq -c

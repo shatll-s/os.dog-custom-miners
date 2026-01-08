@@ -111,12 +111,17 @@ else
     share_json=$(printf '%s\n' "${share_data[@]}" | jq -R . | jq -s .)
 fi
 
-# Get online time from log file modification
+# Get online time from log file creation (birth time)
 if [[ -f "$LOG" ]]; then
-    online=$(stat -c %Y "$LOG" 2>/dev/null)
-    # Check if log was modified in last 60 seconds
+    # Use birth time (%W) for when miner started
+    online=$(stat -c %W "$LOG" 2>/dev/null)
+    # Fallback to mtime if birth time not available (returns 0)
+    [[ "$online" == "0" || -z "$online" ]] && online=$(stat -c %Y "$LOG" 2>/dev/null)
+
+    # Check if miner is still active (log modified in last 60 seconds)
+    mtime=$(stat -c %Y "$LOG" 2>/dev/null)
     now=$(date +%s)
-    if (( now - online > 60 )); then
+    if (( now - mtime > 60 )); then
         online=""
     fi
 fi
