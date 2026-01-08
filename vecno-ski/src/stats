@@ -8,9 +8,9 @@
 ####################################################################################
 
 #	Log format examples:
-#	09:45:01 [INFO] [10s] Hashrate: 21.06 Mhash/s | Shares: 0 | Blocks: 0
-#	09:45:01 [INFO] GPU #0 NVIDIA GeForce RTX 4060 Laptop GPU hashrate: 21.41 Mhash/s
-#	09:44:51 [INFO]                  Vecno-Miner GPU version 0.0.4
+#	312.74 Mhash/s | Accepted: 40 - Rejected: 0 | Up: 2m 10s | 0 CPU, 8 GPU
+#	GPU[#0 NVIDIA GeForce RTX 3070] 39.19 Mhash/s
+#	GPU[#1 NVIDIA GeForce RTX 3070] 39.92 Mhash/s
 
 #	global variables, don`t change it
 ####################################################################################
@@ -24,9 +24,9 @@ GPU_STATS="/run/dog/gpuStats"
 algo="vecno"
 miner="vecno-ski"
 
-# Get version from log
-version=$(grep -oP 'Vecno-Miner GPU version \K[0-9.]+' "$LOG" 2>/dev/null | tail -1)
-[[ -z "$version" ]] && version="0.0.4"
+# Get version from log (if available)
+version=$(grep -oP 'version \K[0-9.]+' "$LOG" 2>/dev/null | tail -1)
+[[ -z "$version" ]] && version="0.1"
 
 # Get GPU count from system stats
 gpuCount=0
@@ -38,16 +38,18 @@ fi
 [[ -z "$gpuCount" || "$gpuCount" == "null" ]] && gpuCount=0
 
 # Parse total hashrate and shares from last summary line
-# Format: [10s] Hashrate: 21.06 Mhash/s | Shares: 0 | Blocks: 0
-last_summary=$(grep -E '\[.*s\] Hashrate:' "$LOG" 2>/dev/null | tail -1)
+# Format: 312.74 Mhash/s | Accepted: 40 - Rejected: 0 | Up: 2m 10s | 0 CPU, 8 GPU
+last_summary=$(grep -E '^[0-9.]+ [MKG]?hash/s \| Accepted:' "$LOG" 2>/dev/null | tail -1)
 
 total_hr=0
 total_shares=0
+total_rejected=0
+
 if [[ -n "$last_summary" ]]; then
-    # Extract hashrate value (e.g., 21.06)
-    hr_value=$(echo "$last_summary" | grep -oP 'Hashrate: \K[0-9.]+')
+    # Extract hashrate value (e.g., 312.74)
+    hr_value=$(echo "$last_summary" | grep -oP '^[0-9.]+')
     # Extract unit (Mhash/s, Khash/s, hash/s)
-    hr_unit=$(echo "$last_summary" | grep -oP 'Hashrate: [0-9.]+ \K[A-Za-z/]+')
+    hr_unit=$(echo "$last_summary" | grep -oP '^[0-9.]+ \K[A-Za-z/]+')
 
     if [[ -n "$hr_value" ]]; then
         # Convert to h/s based on unit
@@ -58,30 +60,35 @@ if [[ -n "$last_summary" ]]; then
             Khash/s|KH/s)
                 total_hr=$(echo "$hr_value * 1000" | bc | cut -d'.' -f1)
                 ;;
+            Ghash/s|GH/s)
+                total_hr=$(echo "$hr_value * 1000000000" | bc | cut -d'.' -f1)
+                ;;
             *)
                 total_hr=$(echo "$hr_value" | cut -d'.' -f1)
                 ;;
         esac
     fi
 
-    # Extract shares
-    total_shares=$(echo "$last_summary" | grep -oP 'Shares: \K[0-9]+')
+    # Extract Accepted and Rejected
+    total_shares=$(echo "$last_summary" | grep -oP 'Accepted: \K[0-9]+')
+    total_rejected=$(echo "$last_summary" | grep -oP 'Rejected: \K[0-9]+')
     [[ -z "$total_shares" ]] && total_shares=0
+    [[ -z "$total_rejected" ]] && total_rejected=0
 fi
 
 # Parse per-GPU hashrates
-# Format: GPU #0 NVIDIA GeForce RTX 4060 Laptop GPU hashrate: 21.41 Mhash/s
+# Format: GPU[#0 NVIDIA GeForce RTX 3070] 39.19 Mhash/s
 declare -a hr_data=()
 declare -a share_data=()
 
 for (( i=0; i < gpuCount; i++ )); do
     # Get last hashrate line for this GPU
-    gpu_line=$(grep -E "GPU #$i .* hashrate:" "$LOG" 2>/dev/null | tail -1)
+    gpu_line=$(grep -E "GPU\[#$i " "$LOG" 2>/dev/null | tail -1)
 
     gpu_hr=0
     if [[ -n "$gpu_line" ]]; then
-        hr_value=$(echo "$gpu_line" | grep -oP 'hashrate: \K[0-9.]+')
-        hr_unit=$(echo "$gpu_line" | grep -oP 'hashrate: [0-9.]+ \K[A-Za-z/]+')
+        hr_value=$(echo "$gpu_line" | grep -oP '\] \K[0-9.]+')
+        hr_unit=$(echo "$gpu_line" | grep -oP '\] [0-9.]+ \K[A-Za-z/]+')
 
         if [[ -n "$hr_value" ]]; then
             case "$hr_unit" in
@@ -90,6 +97,9 @@ for (( i=0; i < gpuCount; i++ )); do
                     ;;
                 Khash/s|KH/s)
                     gpu_hr=$(echo "$hr_value * 1000" | bc | cut -d'.' -f1)
+                    ;;
+                Ghash/s|GH/s)
+                    gpu_hr=$(echo "$hr_value * 1000000000" | bc | cut -d'.' -f1)
                     ;;
                 *)
                     gpu_hr=$(echo "$hr_value" | cut -d'.' -f1)
@@ -140,6 +150,7 @@ data=$(
         $ver,
         total_hr: "'"$total_hr"'",
         total_share: "'"$total_shares"'",
+        total_badshare: "'"$total_rejected"'",
         busid: $busid,
         hr: $hr,
         share: $share
