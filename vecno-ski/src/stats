@@ -26,7 +26,7 @@ miner="vecno-ski"
 
 # Get version from log (if available)
 version=$(grep -oP 'version \K[0-9.]+' "$LOG" 2>/dev/null | tail -1)
-[[ -z "$version" ]] && version="0.3"
+[[ -z "$version" ]] && version="0.4"
 
 # Get GPU count from system stats
 gpuCount=0
@@ -123,18 +123,22 @@ else
     hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
 fi
 
-# Get online time from log file creation (birth time)
-if [[ -f "$LOG" ]]; then
-    # Use birth time (%W) for when miner started
-    online=$(stat -c %W "$LOG" 2>/dev/null)
-    # Fallback to mtime if birth time not available (returns 0)
-    [[ "$online" == "0" || -z "$online" ]] && online=$(stat -c %Y "$LOG" 2>/dev/null)
+# Get online time from uptime in log (Up: 4m 30s)
+online=""
+if [[ -n "$last_summary" ]]; then
+    uptime_str=$(echo "$last_summary" | grep -oP 'Up: \K[0-9hms ]+')
+    if [[ -n "$uptime_str" ]]; then
+        # Parse hours, minutes, seconds
+        hours=$(echo "$uptime_str" | grep -oP '[0-9]+(?=h)' || echo 0)
+        minutes=$(echo "$uptime_str" | grep -oP '[0-9]+(?=m)' || echo 0)
+        seconds=$(echo "$uptime_str" | grep -oP '[0-9]+(?=s)' || echo 0)
+        [[ -z "$hours" ]] && hours=0
+        [[ -z "$minutes" ]] && minutes=0
+        [[ -z "$seconds" ]] && seconds=0
 
-    # Check if miner is still active (log modified in last 60 seconds)
-    mtime=$(stat -c %Y "$LOG" 2>/dev/null)
-    now=$(date +%s)
-    if (( now - mtime > 60 )); then
-        online=""
+        uptime_secs=$((hours * 3600 + minutes * 60 + seconds))
+        now=$(date +%s)
+        online=$((now - uptime_secs))
     fi
 fi
 
