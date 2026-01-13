@@ -109,7 +109,12 @@ if [[ -n "$json_data" && "$json_data" != *"curl:"* && "$json_data" != *"error"* 
             # Get bus_id and convert (01:00.0 -> 01)
             bus_id=$(echo "$json_data" | jq -r ".gpus[$i].bus_id // empty")
             if [[ -n "$bus_id" ]]; then
-                busid=$(echo "$bus_id" | cut -d':' -f1)
+                # Extract first part before ':'
+                busid_raw=$(echo "$bus_id" | cut -d':' -f1)
+                # Ensure lowercase and 2 digits (bus_id is already hex like "01", "0a", "0C")
+                busid=$(echo "$busid_raw" | tr '[:upper:]' '[:lower:]')
+                # Pad with leading zero if single digit
+                [[ ${#busid} -eq 1 ]] && busid="0$busid"
                 busid_data+=("$busid")
             fi
         done
