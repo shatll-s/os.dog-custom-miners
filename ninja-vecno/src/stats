@@ -1,0 +1,145 @@
+#!/bin/bash
+
+####################################################################################
+###
+### ninja-vecno GPU stats
+### os.dog integration: @osdog
+###
+####################################################################################
+
+#	API format:
+#	{
+#	    "name": "ninja-vecno",
+#	    "version": "0.1.0",
+#	    "uptime_seconds": 123,
+#	    "start_time": "2025-01-13 12:00:00",
+#	    "gpus": [
+#	      {
+#	        "bus_id": "01:00.0",
+#	        "name": "#0 NVIDIA GeForce RTX 4060 Laptop GPU",
+#	        "hashrate": 25.5,
+#	        "hashrate_unit": "MH/s"
+#	      }
+#	    ],
+#	    "total_hashrate": 25.5,
+#	    "total_hashrate_unit": "MH/s"
+#	}
+
+#	global variables, don`t change it
+####################################################################################
+CFG_FILENAME="miner.cfg"
+dirname=$(dirname "$0")
+[[ -f "$dirname/$CFG_FILENAME" ]] && . $dirname/$CFG_FILENAME
+
+algo="vecno"
+miner="ninja-vecno"
+
+API_TIMEOUT=2
+
+# Get stats from API
+json_data=$(curl -s --connect-timeout $API_TIMEOUT "http://localhost:$API_PORT/stats" 2>/dev/null)
+
+total_hr=0
+total_shares=0
+version=""
+online=""
+hr_json='[]'
+busid_json='[]'
+
+if [[ -n "$json_data" && "$json_data" != *"curl:"* && "$json_data" != *"error"* ]]; then
+    # Extract version
+    version=$(echo "$json_data" | jq -r '.version // "0.1.0"')
+
+    # Extract uptime and calculate online timestamp
+    uptime_secs=$(echo "$json_data" | jq -r '.uptime_seconds // empty')
+    if [[ -n "$uptime_secs" && "$uptime_secs" != "null" ]]; then
+        now=$(date +%s)
+        online=$((now - uptime_secs))
+    fi
+
+    # Extract total hashrate
+    total_hr_raw=$(echo "$json_data" | jq -r '.total_hashrate // 0')
+    total_hr_unit=$(echo "$json_data" | jq -r '.total_hashrate_unit // "MH/s"')
+
+    # Convert to h/s
+    case "$total_hr_unit" in
+        MH/s|Mhash/s)
+            total_hr=$(echo "$total_hr_raw * 1000000" | bc | cut -d'.' -f1)
+            ;;
+        KH/s|Khash/s)
+            total_hr=$(echo "$total_hr_raw * 1000" | bc | cut -d'.' -f1)
+            ;;
+        GH/s|Ghash/s)
+            total_hr=$(echo "$total_hr_raw * 1000000000" | bc | cut -d'.' -f1)
+            ;;
+        *)
+            total_hr=$(echo "$total_hr_raw" | cut -d'.' -f1)
+            ;;
+    esac
+
+    # Extract per-GPU data
+    gpuCount=$(echo "$json_data" | jq '.gpus | length')
+
+    if [[ "$gpuCount" -gt 0 ]]; then
+        declare -a hr_data=()
+        declare -a busid_data=()
+
+        for (( i=0; i < gpuCount; i++ )); do
+            # Get hashrate
+            gpu_hr_raw=$(echo "$json_data" | jq -r ".gpus[$i].hashrate // 0")
+            gpu_hr_unit=$(echo "$json_data" | jq -r ".gpus[$i].hashrate_unit // \"MH/s\"")
+
+            case "$gpu_hr_unit" in
+                MH/s|Mhash/s)
+                    gpu_hr=$(echo "$gpu_hr_raw * 1000000" | bc | cut -d'.' -f1)
+                    ;;
+                KH/s|Khash/s)
+                    gpu_hr=$(echo "$gpu_hr_raw * 1000" | bc | cut -d'.' -f1)
+                    ;;
+                GH/s|Ghash/s)
+                    gpu_hr=$(echo "$gpu_hr_raw * 1000000000" | bc | cut -d'.' -f1)
+                    ;;
+                *)
+                    gpu_hr=$(echo "$gpu_hr_raw" | cut -d'.' -f1)
+                    ;;
+            esac
+
+            hr_data+=($gpu_hr)
+
+            # Get bus_id and convert (01:00.0 -> 01)
+            bus_id=$(echo "$json_data" | jq -r ".gpus[$i].bus_id // empty")
+            if [[ -n "$bus_id" ]]; then
+                busid=$(echo "$bus_id" | cut -d':' -f1)
+                busid_data+=("$busid")
+            fi
+        done
+
+        hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+        busid_json=$(printf '%s\n' "${busid_data[@]}" | jq -R . | jq -s .)
+    fi
+fi
+
+[[ -z "$version" ]] && version="0.1.0"
+
+data=$(
+    jq -n \
+        --arg algo "$algo" \
+        --arg miner "$miner" \
+        --arg ver "$version" \
+        --argjson busid "$busid_json" \
+        --argjson hr "$hr_json" \
+    '{
+        $miner,
+        $algo,
+        $ver,
+        total_hr: "'"$total_hr"'",
+        busid: $busid,
+        hr: $hr
+    }'
+)
+
+if [[ -n "$online" ]]; then
+    data=$(jq ". += {\"online\": $online}" <<< "$data")
+fi
+
+echo "$data" | jq -c
