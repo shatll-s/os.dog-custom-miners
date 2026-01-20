@@ -26,7 +26,7 @@ miner="vecno-ski"
 
 # Get version from log (if available)
 version=$(grep -oP 'version \K[0-9.]+' "$LOG" 2>/dev/null | tail -1)
-[[ -z "$version" ]] && version="0.4"
+[[ -z "$version" ]] && version="v4a"
 
 # Get GPU count from system stats
 gpuCount=0
@@ -43,29 +43,29 @@ strip_ansi() {
 }
 
 # Parse total hashrate and shares from last summary line
-# Format: 306.83 Mhash/s | Accepted: 50 - Rejected: 0 | Up: 10m 40s | 0 CPU, 8 GPU
-last_summary=$(cat "$LOG" 2>/dev/null | strip_ansi | grep -E '[0-9.]+ [MGK]?hash/s \| Accepted:' | tail -1)
+# Format: 521.14 Mh/s | Accepted: 3 - Rejected: 0 | Up: 19m 20s | jetskipool.ai
+last_summary=$(cat "$LOG" 2>/dev/null | strip_ansi | grep -E '[0-9.]+ [MGK]?h/s \| Accepted:' | tail -1)
 
 total_hr=0
 total_shares=0
 total_rejected=0
 
 if [[ -n "$last_summary" ]]; then
-    # Extract hashrate value and unit (e.g., "306.83 Mhash/s")
-    hr_match=$(echo "$last_summary" | grep -oE '[0-9.]+ [MGK]?hash/s' | head -1)
+    # Extract hashrate value and unit (e.g., "521.14 Mh/s")
+    hr_match=$(echo "$last_summary" | grep -oE '[0-9.]+ [MGK]?h/s' | head -1)
     hr_value=$(echo "$hr_match" | awk '{print $1}')
     hr_unit=$(echo "$hr_match" | awk '{print $2}')
 
     if [[ -n "$hr_value" ]]; then
         # Convert to h/s based on unit
         case "$hr_unit" in
-            Mhash/s)
+            Mh/s|Mhash/s)
                 total_hr=$(echo "$hr_value * 1000000" | bc | cut -d'.' -f1)
                 ;;
-            Khash/s)
+            Kh/s|Khash/s)
                 total_hr=$(echo "$hr_value * 1000" | bc | cut -d'.' -f1)
                 ;;
-            Ghash/s)
+            Gh/s|Ghash/s)
                 total_hr=$(echo "$hr_value * 1000000000" | bc | cut -d'.' -f1)
                 ;;
             *)
@@ -82,7 +82,7 @@ if [[ -n "$last_summary" ]]; then
 fi
 
 # Parse per-GPU hashrates
-# Format:   GPU[#0 NVIDIA GeForce RTX 3070] 39.19 Mhash/s
+# Format:   GPU[#0 NVIDIA GeForce RTX 3070] 39.19 Mh/s
 declare -a hr_data=()
 
 for (( i=0; i < gpuCount; i++ )); do
@@ -91,19 +91,19 @@ for (( i=0; i < gpuCount; i++ )); do
 
     gpu_hr=0
     if [[ -n "$gpu_line" ]]; then
-        hr_match=$(echo "$gpu_line" | grep -oE '[0-9.]+ [MGK]?hash/s')
+        hr_match=$(echo "$gpu_line" | grep -oE '[0-9.]+ [MGK]?h/s')
         hr_value=$(echo "$hr_match" | awk '{print $1}')
         hr_unit=$(echo "$hr_match" | awk '{print $2}')
 
         if [[ -n "$hr_value" ]]; then
             case "$hr_unit" in
-                Mhash/s)
+                Mh/s|Mhash/s)
                     gpu_hr=$(echo "$hr_value * 1000000" | bc | cut -d'.' -f1)
                     ;;
-                Khash/s)
+                Kh/s|Khash/s)
                     gpu_hr=$(echo "$hr_value * 1000" | bc | cut -d'.' -f1)
                     ;;
-                Ghash/s)
+                Gh/s|Ghash/s)
                     gpu_hr=$(echo "$hr_value * 1000000000" | bc | cut -d'.' -f1)
                     ;;
                 *)
