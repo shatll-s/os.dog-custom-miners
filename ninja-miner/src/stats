@@ -15,100 +15,70 @@ dirname=$(dirname "$0")
 
 algo="ninja"
 miner="ninja-miner"
-LOG="/dog/log/ninja-miner.log"
 
-maxDelay=120
-time_now=$(date +%s)
+API_TIMEOUT=2
 
-# Get last stats line from log
-last_line=$(grep -E 'GPU\[cuda-[0-9]+\]:.*h/s' "$LOG" 2>/dev/null | tail -n 1)
+# Get stats from API
+json_data=$(curl -s --connect-timeout $API_TIMEOUT "http://localhost:$API_PORT/stats" 2>/dev/null)
 
-if [[ -z "$last_line" ]]; then
-    echo '{"miner":"ninja-miner","algo":"ninja","hr":[],"busid":[],"total_hr":"0"}'
-    exit 0
-fi
-
-# Check log freshness
-ts_raw=$(echo "$last_line" | grep -oP '^\S+' | head -1)
-time_rep=$(date -d "$ts_raw" +%s 2>/dev/null)
-if [[ -z "$time_rep" ]]; then
-    time_rep=$(date -d "$(echo "$ts_raw" | grep -oP '\d{2}:\d{2}:\d{2}')" +%s 2>/dev/null)
-fi
-
-if [[ -n "$time_rep" ]]; then
-    diffTime=$(( time_now - time_rep ))
-    diffTime=${diffTime#-}
-else
-    diffTime=0
-fi
-
-if [[ "$diffTime" -gt "$maxDelay" ]]; then
-    echo '{"miner":"ninja-miner","algo":"ninja","hr":[],"busid":[],"total_hr":"0"}'
-    exit 0
-fi
-
-# Parse per-GPU hashrates from log
-# Format: NockGPU[cuda-0]: 426.9 h/s, 267.18 proofs/s | 21% util, 47C, 21W, mem 2039/8192MB
-declare -A gpu_hashrates
-while IFS= read -r line; do
-    gpu_idx=$(echo "$line" | grep -oP 'GPU\[cuda-\K[0-9]+')
-    hr=$(echo "$line" | grep -oP 'cuda-[0-9]+\]: \K[0-9]+\.?[0-9]*(?= h/s)')
-    if [[ -n "$gpu_idx" && -n "$hr" ]]; then
-        gpu_hashrates[$gpu_idx]="$hr"
-    fi
-done <<< "$(grep -E 'GPU\[cuda-[0-9]+\]:.*h/s' "$LOG" | tail -n 20)"
-
-# Sort GPU indices
-gpu_indices=($(echo "${!gpu_hashrates[@]}" | tr ' ' '\n' | sort -n))
-gpu_count=${#gpu_indices[@]}
-
-if [[ "$gpu_count" -eq 0 ]]; then
-    echo '{"miner":"ninja-miner","algo":"ninja","hr":[],"busid":[],"total_hr":"0"}'
-    exit 0
-fi
-
-# Build hashrate array and total
-hash_arr=()
-total_hs=0
-for idx in "${gpu_indices[@]}"; do
-    hr="${gpu_hashrates[$idx]}"
-    hash_arr+=("$hr")
-    total_hs=$(echo "$total_hs + $hr" | bc)
-done
-
-# Get bus IDs from nvidia-smi
-busid_arr=()
-if command -v nvidia-smi &>/dev/null; then
-    while IFS=', ' read -r bus; do
-        bus_hex=$(echo "$bus" | grep -oP '[0-9A-Fa-f]{2}(?=:[0-9A-Fa-f]{2}\.[0-9])')
-        busid_arr+=("$(printf '%02x' $((16#${bus_hex:-0})))")
-    done < <(nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader,nounits 2>/dev/null)
-fi
-
-# Calculate online timestamp from log start
+total_hr=0
 online=""
-first_line=$(head -1 "$LOG" 2>/dev/null)
-if [[ -n "$first_line" ]]; then
-    ts_first=$(echo "$first_line" | grep -oP '^\S+' | head -1)
-    online=$(date -d "$ts_first" +%s 2>/dev/null)
+hr_json='[]'
+busid_json='[]'
+
+if [[ -n "$json_data" && "$json_data" != *"curl:"* && "$json_data" != *"error"* ]]; then
+    # Extract version
+    version=$(echo "$json_data" | jq -r '.version // "0.5.0"')
+
+    # Online timestamp from uptime
+    uptime_secs=$(echo "$json_data" | jq -r '.uptime_seconds // empty')
+    if [[ -n "$uptime_secs" && "$uptime_secs" != "null" ]]; then
+        online=$(( $(date +%s) - uptime_secs ))
+    fi
+
+    # Total hashrate = proofs_per_sec
+    total_hr=$(echo "$json_data" | jq -r '.total_proofs_per_sec // 0' | cut -d'.' -f1)
+
+    # Per-GPU data
+    gpuCount=$(echo "$json_data" | jq '.gpus | length')
+
+    if [[ "$gpuCount" -gt 0 ]]; then
+        declare -a hr_data=()
+        declare -a busid_data=()
+
+        for (( i=0; i < gpuCount; i++ )); do
+            # proofs_per_sec as hashrate
+            gpu_hr=$(echo "$json_data" | jq -r ".gpus[$i].proofs_per_sec // 0" | cut -d'.' -f1)
+            hr_data+=($gpu_hr)
+
+            bus_id=$(echo "$json_data" | jq -r ".gpus[$i].bus_id // empty")
+            if [[ -n "$bus_id" ]]; then
+                busid_raw=$(echo "$bus_id" | cut -d':' -f1)
+                busid=$(echo "$busid_raw" | tr '[:upper:]' '[:lower:]')
+                [[ ${#busid} -eq 1 ]] && busid="0$busid"
+                busid_data+=("$busid")
+            fi
+        done
+
+        hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+        busid_json=$(printf '%s\n' "${busid_data[@]}" | jq -R . | jq -s .)
+    fi
 fi
 
-# Build JSON
-hr_json=$(printf '%s\n' "${hash_arr[@]}" | jq -R . | jq -s .)
-busid_json=$(printf '%s\n' "${busid_arr[@]}" | jq -R . | jq -s .)
+[[ -z "$version" ]] && version="0.5.0"
 
 data=$(
     jq -n \
         --arg algo "$algo" \
         --arg miner "$miner" \
-        --arg ver "0.2.0" \
+        --arg ver "$version" \
         --argjson busid "$busid_json" \
         --argjson hr "$hr_json" \
     '{
         $miner,
         $algo,
         $ver,
-        total_hr: "'"$total_hs"'",
+        total_hr: "'"$total_hr"'",
         busid: $busid,
         hr: $hr
     }'
