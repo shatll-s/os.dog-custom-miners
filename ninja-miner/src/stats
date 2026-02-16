@@ -15,111 +15,100 @@ dirname=$(dirname "$0")
 
 algo="ninja"
 miner="ninja-miner"
+LOG="/dog/log/ninja-miner.log"
 
-API_TIMEOUT=2
+maxDelay=120
+time_now=$(date +%s)
 
-# Get stats from API
-json_data=$(curl -s --connect-timeout $API_TIMEOUT "http://localhost:$API_PORT/stats" 2>/dev/null)
+# Get last stats line from log
+last_line=$(grep -E 'GPU\[cuda-[0-9]+\]:.*h/s' "$LOG" 2>/dev/null | tail -n 1)
 
-total_hr=0
-total_shares=0
-version=""
-online=""
-hr_json='[]'
-busid_json='[]'
-
-if [[ -n "$json_data" && "$json_data" != *"curl:"* && "$json_data" != *"error"* ]]; then
-    # Extract version
-    version=$(echo "$json_data" | jq -r '.version // "0.1.0"')
-
-    # Extract uptime and calculate online timestamp
-    uptime_secs=$(echo "$json_data" | jq -r '.uptime_seconds // empty')
-    if [[ -n "$uptime_secs" && "$uptime_secs" != "null" ]]; then
-        now=$(date +%s)
-        online=$((now - uptime_secs))
-    fi
-
-    # Extract total hashrate
-    total_hr_raw=$(echo "$json_data" | jq -r '.total_hashrate // 0')
-    total_hr_unit=$(echo "$json_data" | jq -r '.total_hashrate_unit // "H/s"')
-
-    # Convert to h/s
-    case "$total_hr_unit" in
-        MH/s|Mhash/s)
-            total_hr=$(echo "$total_hr_raw * 1000000" | bc | cut -d'.' -f1)
-            ;;
-        KH/s|Khash/s)
-            total_hr=$(echo "$total_hr_raw * 1000" | bc | cut -d'.' -f1)
-            ;;
-        GH/s|Ghash/s)
-            total_hr=$(echo "$total_hr_raw * 1000000000" | bc | cut -d'.' -f1)
-            ;;
-        *)
-            total_hr=$(echo "$total_hr_raw" | cut -d'.' -f1)
-            ;;
-    esac
-
-    # Extract per-GPU data
-    gpuCount=$(echo "$json_data" | jq '.gpus | length')
-
-    if [[ "$gpuCount" -gt 0 ]]; then
-        declare -a hr_data=()
-        declare -a busid_data=()
-
-        for (( i=0; i < gpuCount; i++ )); do
-            # Get hashrate
-            gpu_hr_raw=$(echo "$json_data" | jq -r ".gpus[$i].hashrate // 0")
-            gpu_hr_unit=$(echo "$json_data" | jq -r ".gpus[$i].hashrate_unit // \"H/s\"")
-
-            case "$gpu_hr_unit" in
-                MH/s|Mhash/s)
-                    gpu_hr=$(echo "$gpu_hr_raw * 1000000" | bc | cut -d'.' -f1)
-                    ;;
-                KH/s|Khash/s)
-                    gpu_hr=$(echo "$gpu_hr_raw * 1000" | bc | cut -d'.' -f1)
-                    ;;
-                GH/s|Ghash/s)
-                    gpu_hr=$(echo "$gpu_hr_raw * 1000000000" | bc | cut -d'.' -f1)
-                    ;;
-                *)
-                    gpu_hr=$(echo "$gpu_hr_raw" | cut -d'.' -f1)
-                    ;;
-            esac
-
-            hr_data+=($gpu_hr)
-
-            # Get bus_id and convert (01:00.0 -> 01)
-            bus_id=$(echo "$json_data" | jq -r ".gpus[$i].bus_id // empty")
-            if [[ -n "$bus_id" ]]; then
-                # Extract first part before ':'
-                busid_raw=$(echo "$bus_id" | cut -d':' -f1)
-                # Ensure lowercase and 2 digits
-                busid=$(echo "$busid_raw" | tr '[:upper:]' '[:lower:]')
-                # Pad with leading zero if single digit
-                [[ ${#busid} -eq 1 ]] && busid="0$busid"
-                busid_data+=("$busid")
-            fi
-        done
-
-        hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
-        busid_json=$(printf '%s\n' "${busid_data[@]}" | jq -R . | jq -s .)
-    fi
+if [[ -z "$last_line" ]]; then
+    echo '{"miner":"ninja-miner","algo":"ninja","hr":[],"busid":[],"total_hr":"0"}'
+    exit 0
 fi
 
-[[ -z "$version" ]] && version="0.1.0"
+# Check log freshness
+ts_raw=$(echo "$last_line" | grep -oP '^\S+' | head -1)
+time_rep=$(date -d "$ts_raw" +%s 2>/dev/null)
+if [[ -z "$time_rep" ]]; then
+    time_rep=$(date -d "$(echo "$ts_raw" | grep -oP '\d{2}:\d{2}:\d{2}')" +%s 2>/dev/null)
+fi
+
+if [[ -n "$time_rep" ]]; then
+    diffTime=$(( time_now - time_rep ))
+    diffTime=${diffTime#-}
+else
+    diffTime=0
+fi
+
+if [[ "$diffTime" -gt "$maxDelay" ]]; then
+    echo '{"miner":"ninja-miner","algo":"ninja","hr":[],"busid":[],"total_hr":"0"}'
+    exit 0
+fi
+
+# Parse per-GPU hashrates from log
+# Format: NockGPU[cuda-0]: 426.9 h/s, 267.18 proofs/s | 21% util, 47C, 21W, mem 2039/8192MB
+declare -A gpu_hashrates
+while IFS= read -r line; do
+    gpu_idx=$(echo "$line" | grep -oP 'GPU\[cuda-\K[0-9]+')
+    hr=$(echo "$line" | grep -oP 'cuda-[0-9]+\]: \K[0-9]+\.?[0-9]*(?= h/s)')
+    if [[ -n "$gpu_idx" && -n "$hr" ]]; then
+        gpu_hashrates[$gpu_idx]="$hr"
+    fi
+done <<< "$(grep -E 'GPU\[cuda-[0-9]+\]:.*h/s' "$LOG" | tail -n 20)"
+
+# Sort GPU indices
+gpu_indices=($(echo "${!gpu_hashrates[@]}" | tr ' ' '\n' | sort -n))
+gpu_count=${#gpu_indices[@]}
+
+if [[ "$gpu_count" -eq 0 ]]; then
+    echo '{"miner":"ninja-miner","algo":"ninja","hr":[],"busid":[],"total_hr":"0"}'
+    exit 0
+fi
+
+# Build hashrate array and total
+hash_arr=()
+total_hs=0
+for idx in "${gpu_indices[@]}"; do
+    hr="${gpu_hashrates[$idx]}"
+    hash_arr+=("$hr")
+    total_hs=$(echo "$total_hs + $hr" | bc)
+done
+
+# Get bus IDs from nvidia-smi
+busid_arr=()
+if command -v nvidia-smi &>/dev/null; then
+    while IFS=', ' read -r bus; do
+        bus_hex=$(echo "$bus" | grep -oP '[0-9A-Fa-f]{2}(?=:[0-9A-Fa-f]{2}\.[0-9])')
+        busid_arr+=("$(printf '%02x' $((16#${bus_hex:-0})))")
+    done < <(nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader,nounits 2>/dev/null)
+fi
+
+# Calculate online timestamp from log start
+online=""
+first_line=$(head -1 "$LOG" 2>/dev/null)
+if [[ -n "$first_line" ]]; then
+    ts_first=$(echo "$first_line" | grep -oP '^\S+' | head -1)
+    online=$(date -d "$ts_first" +%s 2>/dev/null)
+fi
+
+# Build JSON
+hr_json=$(printf '%s\n' "${hash_arr[@]}" | jq -R . | jq -s .)
+busid_json=$(printf '%s\n' "${busid_arr[@]}" | jq -R . | jq -s .)
 
 data=$(
     jq -n \
         --arg algo "$algo" \
         --arg miner "$miner" \
-        --arg ver "$version" \
+        --arg ver "0.2.0" \
         --argjson busid "$busid_json" \
         --argjson hr "$hr_json" \
     '{
         $miner,
         $algo,
         $ver,
-        total_hr: "'"$total_hr"'",
+        total_hr: "'"$total_hs"'",
         busid: $busid,
         hr: $hr
     }'
