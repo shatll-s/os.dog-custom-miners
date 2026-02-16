@@ -24,6 +24,7 @@ LOG="/dog/log/ninja-miner.log"
 #	custom package body
 ####################################################################################
 
+ADDITION="${ADDITION%%#*}"
 echo "> additional args: $ADDITION"
 REMAINING_ARGS=""
 parse_args "$ADDITION" devices
