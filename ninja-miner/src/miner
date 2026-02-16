@@ -1,0 +1,57 @@
+#!/bin/bash
+####################################################################################
+###
+### ninja-miner GPU miner
+### os.dog integration: @osdog
+###
+####################################################################################
+. /dog/colors
+
+cd `dirname $0`
+. ./utils.sh
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+LOG="/dog/log/ninja-miner.log"
+
+#	custom package body
+####################################################################################
+
+echo "> additional args: $ADDITION"
+REMAINING_ARGS=""
+parse_args "$ADDITION" devices
+remainingAddition=$REMAINING_ARGS
+echo "> remaining args: $remainingAddition"
+
+# Parse POOL to get node address
+# Expected format: grpc://host:port or host:port or host
+NODE_ADDR="$POOL"
+if [[ ! "$NODE_ADDR" =~ ^grpc:// ]]; then
+    NODE_ADDR="grpc://$NODE_ADDR"
+fi
+
+$LINE
+echo -e "${GREEN}> Starting ninja-miner GPU miner${WHITE}"
+echo "> Node: $NODE_ADDR"
+echo "> Pubkey: $TEMPLATE"
+echo "> API Port: $API_PORT"
+
+free_port $API_PORT
+
+batch="./ninja-miner --mining-pubkey=$TEMPLATE --nockchain-address=$NODE_ADDR --api-port $API_PORT $remainingAddition"
+
+if [[ -n "$devices" ]]; then
+  echo "CUDA_VISIBLE_DEVICES=$devices $batch"
+  export CUDA_VISIBLE_DEVICES=$devices
+  unbuffer $batch 2>&1 | tee $LOG
+else
+  echo "$batch"
+  unbuffer $batch 2>&1 | tee $LOG
+fi
