@@ -1,0 +1,101 @@
+#!/bin/bash
+
+####################################################################################
+###
+### ninja-miner2 GPU stats
+### os.dog integration: @osdog
+###
+####################################################################################
+
+algo="ninja"
+miner="ninja-miner2"
+ver="0.3.16"
+LOG="/var/log/osdog/miners/ninja-miner2.log"
+
+maxDelay=120
+time_now=$(date +%s)
+
+empty_stats() {
+    echo "{\"miner\":\"$miner\",\"algo\":\"$algo\",\"ver\":\"$ver\",\"hr\":[],\"busid\":[],\"total_hr\":\"0\"}"
+    exit 0
+}
+
+[[ ! -f "$LOG" ]] && empty_stats
+
+# Check log freshness
+log_ts=$(stat -c %Y "$LOG" 2>/dev/null || echo 0)
+diffTime=$((time_now - log_ts))
+(( diffTime < 0 )) && diffTime=$((-diffTime))
+[[ "$diffTime" -ge "$maxDelay" ]] && empty_stats
+
+# Parse per-GPU speed from log: "GPU0: 18.8 p/s"
+log_tail=$(tail -200 "$LOG")
+
+gpu_count=$(nvidia-smi -L 2>/dev/null | wc -l)
+[[ -z "$gpu_count" || "$gpu_count" -eq 0 ]] && gpu_count=1
+
+declare -a hr_data=()
+total_speed=0
+
+for ((i=0; i<gpu_count; i++)); do
+    speed=$(echo "$log_tail" | grep -oP "GPU${i}:\K[0-9]+\.[0-9]+" | tail -1)
+    speed="${speed:-0}"
+    hr_data+=("$speed")
+    total_speed=$(awk "BEGIN {printf \"%.2f\", $total_speed + $speed}")
+done
+
+# Accepted/rejected from log: "shares X/Y"
+shares_line=$(echo "$log_tail" | grep -oP "shares \K[0-9]+/[0-9]+" | tail -1)
+found=$(echo "$shares_line" | cut -d/ -f1)
+found="${found:-0}"
+accepted=$(echo "$shares_line" | cut -d/ -f2)
+accepted="${accepted:-0}"
+rejected=$((found > accepted ? found - accepted : 0))
+
+# Get bus IDs from nvidia-smi
+busid_arr=()
+if command -v nvidia-smi &>/dev/null; then
+    while IFS=', ' read -r bus; do
+        bus_hex=$(echo "$bus" | grep -oP '[0-9A-Fa-f]{2}(?=:[0-9A-Fa-f]{2}\.[0-9])')
+        busid_arr+=("$(printf '%02x' $((16#${bus_hex:-0})))")
+    done < <(nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader,nounits 2>/dev/null)
+fi
+
+# Online timestamp from miner process
+online=""
+pid=$(pgrep -f "ninja-miner2" | head -1)
+if [[ -n "$pid" && -d "/proc/$pid" ]]; then
+    uptime_sec=$(ps -o etimes= -p "$pid" 2>/dev/null | awk '{gsub(/^ +/,""); print}')
+    uptime_sec="${uptime_sec:-0}"
+    online=$((time_now - uptime_sec))
+fi
+
+# Build JSON
+hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+busid_json=$(printf '%s\n' "${busid_arr[@]}" | jq -R . | jq -s .)
+
+data=$(
+    jq -n \
+        --arg algo "$algo" \
+        --arg miner "$miner" \
+        --arg ver "$ver" \
+        --argjson busid "$busid_json" \
+        --argjson hr "$hr_json" \
+        --argjson ac "$accepted" \
+        --argjson rj "$rejected" \
+    '{
+        $miner,
+        $algo,
+        $ver,
+        total_hr: "'"$total_speed"'",
+        busid: $busid,
+        hr: $hr,
+        ar: [$ac, $rj]
+    }'
+)
+
+if [[ -n "$online" ]]; then
+    data=$(jq ". += {\"online\": $online}" <<< "$data")
+fi
+
+echo "$data" | jq -c

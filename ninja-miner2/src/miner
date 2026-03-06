@@ -1,0 +1,51 @@
+#!/bin/bash
+####################################################################################
+###
+### ninja-miner2 GPU miner
+### os.dog integration: @osdog
+###
+####################################################################################
+
+cd `dirname $0`
+. ./utils.sh
+
+PROFILE="$1"
+if [[ -z "$PROFILE" || ! -f "$PROFILE" ]]; then
+    echo "Usage: ./miner /path/to/profile.json"
+    exit 1
+fi
+
+POOL=$(jq -r '.pool // empty' "$PROFILE")
+TEMPLATE=$(jq -r '.template // empty' "$PROFILE")
+ADDITION=$(jq -r '.addition // empty' "$PROFILE")
+
+LOG="/var/log/osdog/miners/ninja-miner2.log"
+mkdir -p /var/log/osdog/miners
+
+ADDITION="${ADDITION%%#*}"
+echo "> additional args: $ADDITION"
+REMAINING_ARGS=""
+parse_args "$ADDITION" devices
+remainingAddition=$REMAINING_ARGS
+echo "> remaining args: $remainingAddition"
+
+# Parse POOL to get node address
+NODE_ADDR="$POOL"
+if [[ ! "$NODE_ADDR" =~ ^http ]]; then
+    NODE_ADDR="http://$NODE_ADDR"
+fi
+
+echo "> Starting ninja-miner2 GPU miner"
+echo "> Node: $NODE_ADDR"
+echo "> Wallet: $TEMPLATE"
+
+batch="./ninja-miner2 --node-addr $NODE_ADDR --mining-pkh $TEMPLATE"
+
+if [[ -n "$devices" ]]; then
+    batch+=" --cuda-devices $devices"
+fi
+
+[[ -n "$remainingAddition" ]] && batch+=" $remainingAddition"
+
+echo "$batch"
+unbuffer $batch 2>&1 | tee $LOG
