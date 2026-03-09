@@ -29,17 +29,19 @@ parse_args "$ADDITION" devices
 remainingAddition=$REMAINING_ARGS
 echo "> remaining args: $remainingAddition"
 
-# Parse POOL to get node address
-NODE_ADDR="$POOL"
-if [[ ! "$NODE_ADDR" =~ ^http ]]; then
-    NODE_ADDR="http://$NODE_ADDR"
-fi
-
 echo "> Starting ninja-miner2 GPU miner"
-echo "> Node: $NODE_ADDR"
 echo "> Wallet: $TEMPLATE"
 
-batch="./ninja-miner2 --node-addr $NODE_ADDR --mining-pkh $TEMPLATE"
+batch="./ninja-miner2 --mining-pkh $TEMPLATE"
+
+if [[ -n "$POOL" ]]; then
+    NODE_ADDR="$POOL"
+    if [[ ! "$NODE_ADDR" =~ ^http ]]; then
+        NODE_ADDR="http://$NODE_ADDR"
+    fi
+    batch+=" --node-addr $NODE_ADDR"
+    echo "> Node: $NODE_ADDR"
+fi
 
 if [[ -n "$devices" ]]; then
     batch+=" --cuda-devices $devices"
