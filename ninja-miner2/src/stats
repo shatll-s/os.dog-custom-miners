@@ -9,7 +9,7 @@
 
 algo="ninja"
 miner="ninja-miner2"
-ver="0.3.26"
+ver="0.3.27"
 LOG="/var/log/osdog/miners/ninja-miner2.log"
 
 maxDelay=120
