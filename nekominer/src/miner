@@ -1,0 +1,50 @@
+#!/bin/bash
+####################################################################################
+###
+### nekominer GPU miner
+### os.dog integration: @osdog
+###
+####################################################################################
+
+cd `dirname $0`
+. ./utils.sh
+
+PROFILE="$1"
+if [[ -z "$PROFILE" || ! -f "$PROFILE" ]]; then
+    echo "Usage: ./miner /path/to/profile.json"
+    exit 1
+fi
+
+POOL=$(jq -r '.pool // empty' "$PROFILE")
+TEMPLATE=$(jq -r '.template // empty' "$PROFILE")
+ALGO=$(jq -r '.algo // empty' "$PROFILE")
+API_PORT=$(jq -r '.api_port // 45545' "$PROFILE")
+ADDITION=$(jq -r '.addition // empty' "$PROFILE")
+
+LOG="/var/log/osdog/miners/nekominer.log"
+mkdir -p /var/log/osdog/miners
+
+ADDITION="${ADDITION%%#*}"
+REMAINING_ARGS=""
+parse_args "$ADDITION" devices
+remainingAddition=$REMAINING_ARGS
+
+echo "> additional args: $ADDITION"
+echo "> remaining args: $remainingAddition"
+
+echo "> Starting nekominer"
+echo "> Pool: $POOL"
+echo "> User: $TEMPLATE"
+echo "> Algo: $ALGO"
+echo "> API Port: $API_PORT"
+
+free_port $API_PORT
+
+batch="./nekominer -o $POOL -u $TEMPLATE --api-port $API_PORT"
+[[ -n "$ALGO" ]] && batch="./nekominer -a $ALGO -o $POOL -u $TEMPLATE --api-port $API_PORT"
+
+[[ -n "$devices" ]] && batch+=" -d $devices"
+[[ -n "$remainingAddition" ]] && batch+=" $remainingAddition"
+
+echo "$batch"
+unbuffer $batch 2>&1 | tee $LOG

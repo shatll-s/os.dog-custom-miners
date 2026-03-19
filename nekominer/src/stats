@@ -1,0 +1,83 @@
+#!/bin/bash
+
+####################################################################################
+###
+### nekominer GPU stats
+### os.dog integration: @osdog
+###
+####################################################################################
+
+algo="ninja"
+miner="nekominer"
+ver="0.1.0"
+
+API_PORT=45545
+PROFILE="$1"
+if [[ -n "$PROFILE" && -f "$PROFILE" ]]; then
+    API_PORT=$(jq -r '.api_port // 45545' "$PROFILE")
+fi
+
+API_TIMEOUT=2
+
+json_data=$(curl -s --connect-timeout $API_TIMEOUT "http://localhost:$API_PORT/" 2>/dev/null)
+
+total_hr=0
+online=""
+hr_json='[]'
+busid_json='[]'
+
+if [[ -n "$json_data" ]]; then
+    version=$(echo "$json_data" | jq -r '.version // "0.1.0"')
+    algo_raw=$(echo "$json_data" | jq -r '.algo // "ninja"')
+    uptime=$(echo "$json_data" | jq -r '.uptime // empty')
+    [[ -n "$uptime" && "$uptime" != "null" ]] && online=$(( $(date +%s) - uptime ))
+
+    devCount=$(echo "$json_data" | jq '.devices | length')
+
+    if [[ "$devCount" -gt 0 ]]; then
+        declare -a hr_data=()
+        declare -a busid_data=()
+
+        for (( i=0; i < devCount; i++ )); do
+            gpu_hr=$(echo "$json_data" | jq -r ".devices[$i].hashrate // 0" | cut -d'.' -f1)
+            hr_data+=($gpu_hr)
+            total_hr=$(( total_hr + gpu_hr ))
+
+            bus_id=$(echo "$json_data" | jq -r ".devices[$i].bus_id // empty")
+            if [[ -n "$bus_id" ]]; then
+                busid_raw=$(echo "$bus_id" | cut -d':' -f1)
+                busid=$(echo "$busid_raw" | tr '[:upper:]' '[:lower:]')
+                [[ ${#busid} -eq 1 ]] && busid="0$busid"
+                busid_data+=("$busid")
+            fi
+        done
+
+        hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
+        busid_json=$(printf '%s\n' "${busid_data[@]}" | jq -R . | jq -s .)
+    fi
+
+    [[ -n "$version" ]] && ver="$version"
+fi
+
+data=$(
+    jq -n \
+        --arg algo "$algo" \
+        --arg miner "$miner" \
+        --arg ver "$ver" \
+        --argjson busid "$busid_json" \
+        --argjson hr "$hr_json" \
+    '{
+        $miner,
+        $algo,
+        $ver,
+        total_hr: "'"$total_hr"'",
+        busid: $busid,
+        hr: $hr
+    }'
+)
+
+if [[ -n "$online" ]]; then
+    data=$(jq ". += {\"online\": $online}" <<< "$data")
+fi
+
+echo "$data" | jq -c
