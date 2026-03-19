@@ -9,7 +9,7 @@
 
 algo="ninja"
 miner="nekominer"
-ver="0.1.0"
+ver="0.2.0"
 
 API_PORT=45545
 PROFILE="$1"
@@ -34,6 +34,9 @@ if [[ -n "$json_data" ]]; then
 
     devCount=$(echo "$json_data" | jq '.devices | length')
 
+    total_accepted=0
+    total_rejected=0
+
     if [[ "$devCount" -gt 0 ]]; then
         declare -a hr_data=()
         declare -a busid_data=()
@@ -42,6 +45,11 @@ if [[ -n "$json_data" ]]; then
             gpu_hr=$(echo "$json_data" | jq -r ".devices[$i].hashrate // 0" | cut -d'.' -f1)
             hr_data+=($gpu_hr)
             total_hr=$(( total_hr + gpu_hr ))
+
+            ac=$(echo "$json_data" | jq -r ".devices[$i].accepted // 0")
+            rj=$(echo "$json_data" | jq -r ".devices[$i].rejected // 0")
+            total_accepted=$(( total_accepted + ac ))
+            total_rejected=$(( total_rejected + rj ))
 
             bus_id=$(echo "$json_data" | jq -r ".devices[$i].bus_id // empty")
             if [[ -n "$bus_id" ]]; then
@@ -57,6 +65,7 @@ if [[ -n "$json_data" ]]; then
     fi
 
     [[ -n "$version" ]] && ver="$version"
+    [[ -n "$algo_raw" && "$algo_raw" != "null" ]] && algo="$algo_raw"
 fi
 
 data=$(
@@ -66,13 +75,16 @@ data=$(
         --arg ver "$ver" \
         --argjson busid "$busid_json" \
         --argjson hr "$hr_json" \
+        --argjson ac "${total_accepted:-0}" \
+        --argjson rj "${total_rejected:-0}" \
     '{
         $miner,
         $algo,
         $ver,
         total_hr: "'"$total_hr"'",
         busid: $busid,
-        hr: $hr
+        hr: $hr,
+        ar: [$ac, $rj]
     }'
 )
 
