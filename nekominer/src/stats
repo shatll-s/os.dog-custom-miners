@@ -9,7 +9,7 @@
 
 algo="ninja"
 miner="nekominer"
-ver="0.3.3"
+ver="0.4.1"
 
 API_PORT=45545
 PROFILE="$1"
