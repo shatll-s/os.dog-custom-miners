@@ -7,89 +7,90 @@
 ###
 ####################################################################################
 
-algo="ninja"
-miner="nekominer"
-ver="0.4.3"
+# os.dog stats output format:
+# {
+#   "miner": "nekominer",
+#   "algo": "blake3",
+#   "ver": "0.5.2",
+#   "online": 1711234567,              // unix timestamp when miner started
+#   "total_hr": "25345148",            // total hashrate (string, H/s)
+#   "total_share": "31",               // total accepted shares (string)
+#   "total_badshare": "0",             // total rejected shares (string)
+#   "hr": [3169026, 3168905, ...],     // per-GPU hashrate array
+#   "share": [6, 5, 2, ...],          // per-GPU accepted shares array
+#   "badshare": [0, 0, 0, ...],       // per-GPU rejected shares array
+#   "temp": [65, 63, ...],            // per-GPU temperature array (optional)
+#   "fan": [55, 50, ...],             // per-GPU fan speed array (optional)
+#   "busid": {"0":"01","1":"02",...}   // per-GPU bus ID object (hex, lowercase)
+# }
 
-API_PORT=45545
+cd `dirname $0`
+
 PROFILE="$1"
-if [[ -n "$PROFILE" && -f "$PROFILE" ]]; then
-    API_PORT=$(jq -r '.api_port // 45545' "$PROFILE")
+[[ -z "$PROFILE" || ! -f "$PROFILE" ]] && echo "Usage: $0 <profile.json>" && exit 1
+
+API_PORT=$(jq -r '.api_port // 45545' "$PROFILE")
+
+miner="nekominer"
+API_TIMEOUT=5
+
+json_data=$(curl -s --connect-timeout 2 --max-time $API_TIMEOUT "http://localhost:$API_PORT/" 2>/dev/null)
+[[ -z "$json_data" ]] && exit 1
+
+miner_ver=$(echo "$json_data" | jq -r '.version // "unknown"')
+miner_algo=$(echo "$json_data" | jq -r '.algo // "unknown"')
+uptime=$(echo "$json_data" | jq -r '.uptime // empty')
+
+miner_online=""
+if [[ -n "$uptime" && "$uptime" != "null" ]]; then
+    miner_online=$(( $(date +%s) - uptime ))
 fi
 
-API_TIMEOUT=2
+devCount=$(echo "$json_data" | jq '.devices | length')
 
-json_data=$(curl -s --connect-timeout $API_TIMEOUT "http://localhost:$API_PORT/" 2>/dev/null)
+miner_hr_json=$(echo "$json_data" | jq '[.devices[].hashrate | floor]')
+miner_share_json=$(echo "$json_data" | jq '[.devices[].accepted]')
+miner_badshare_json=$(echo "$json_data" | jq '[.devices[].rejected]')
 
-total_hr=0
-online=""
-hr_json='[]'
-busid_json='[]'
-
-if [[ -n "$json_data" ]]; then
-    version=$(echo "$json_data" | jq -r '.version // "0.1.0"')
-    algo_raw=$(echo "$json_data" | jq -r '.algo // "ninja"')
-    uptime=$(echo "$json_data" | jq -r '.uptime // empty')
-    [[ -n "$uptime" && "$uptime" != "null" ]] && online=$(( $(date +%s) - uptime ))
-
-    devCount=$(echo "$json_data" | jq '.devices | length')
-
-    total_accepted=0
-    total_rejected=0
-
-    if [[ "$devCount" -gt 0 ]]; then
-        declare -a hr_data=()
-        declare -a busid_data=()
-
-        for (( i=0; i < devCount; i++ )); do
-            gpu_hr=$(echo "$json_data" | jq -r ".devices[$i].hashrate // 0" | cut -d'.' -f1)
-            hr_data+=($gpu_hr)
-            total_hr=$(( total_hr + gpu_hr ))
-
-            ac=$(echo "$json_data" | jq -r ".devices[$i].accepted // 0")
-            rj=$(echo "$json_data" | jq -r ".devices[$i].rejected // 0")
-            total_accepted=$(( total_accepted + ac ))
-            total_rejected=$(( total_rejected + rj ))
-
-            bus_id=$(echo "$json_data" | jq -r ".devices[$i].bus_id // empty")
-            if [[ -n "$bus_id" ]]; then
-                busid_raw=$(echo "$bus_id" | cut -d':' -f1)
-                busid=$(echo "$busid_raw" | tr '[:upper:]' '[:lower:]')
-                [[ ${#busid} -eq 1 ]] && busid="0$busid"
-                busid_data+=("$busid")
-            fi
-        done
-
-        hr_json=$(printf '%s\n' "${hr_data[@]}" | jq -R . | jq -s .)
-        busid_json=$(printf '%s\n' "${busid_data[@]}" | jq -R . | jq -s .)
+# Bus IDs as object {"0": "01", "1": "02", ...}
+busid_json='{}'
+for ((i=0; i < devCount; i++)); do
+    bus_id=$(echo "$json_data" | jq -r ".devices[$i].bus_id // empty")
+    if [[ -n "$bus_id" ]]; then
+        busid_raw=$(echo "$bus_id" | cut -d':' -f1 | tr '[:upper:]' '[:lower:]')
+        [[ ${#busid_raw} -eq 1 ]] && busid_raw="0$busid_raw"
+        busid_json=$(jq -n --argjson data "$busid_json" --arg key "$i" --arg value "$busid_raw" \
+            '$data + { ($key): $value }')
     fi
+done
 
-    [[ -n "$version" ]] && ver="$version"
-    [[ -n "$algo_raw" && "$algo_raw" != "null" ]] && algo="$algo_raw"
-fi
+# Calculate totals
+miner_total_hr=0
+miner_total_share=0
+miner_total_badshare=0
 
-data=$(
-    jq -n \
-        --arg algo "$algo" \
-        --arg miner "$miner" \
-        --arg ver "$ver" \
-        --argjson busid "$busid_json" \
-        --argjson hr "$hr_json" \
-        --argjson ac "${total_accepted:-0}" \
-        --argjson rj "${total_rejected:-0}" \
-    '{
-        $miner,
-        $algo,
-        $ver,
-        total_hr: "'"$total_hr"'",
-        busid: $busid,
-        hr: $hr,
-        ar: [$ac, $rj]
-    }'
-)
+for ((i=0; i < devCount; i++)); do
+    hr=$(echo "$miner_hr_json" | jq -r ".[$i]")
+    share=$(echo "$miner_share_json" | jq -r ".[$i]")
+    badshare=$(echo "$miner_badshare_json" | jq -r ".[$i]")
+    miner_total_hr=$((miner_total_hr + hr))
+    miner_total_share=$((miner_total_share + share))
+    miner_total_badshare=$((miner_total_badshare + badshare))
+done
 
-if [[ -n "$online" ]]; then
-    data=$(jq ". += {\"online\": $online}" <<< "$data")
-fi
+# Build output JSON
+miner_json=$(jq -n "{\"miner\": \"$miner\"}")
 
-echo "$data" | jq -c
+[[ -n "$miner_algo" && "$miner_algo" != "null" ]] && miner_json=$(jq ". + {\"algo\": \"$miner_algo\"}" <<< "$miner_json")
+[[ -n "$miner_online" ]] && miner_json=$(jq ". + {\"online\": \"$miner_online\"}" <<< "$miner_json")
+[[ -n "$miner_total_hr" ]] && miner_json=$(jq ". + {\"total_hr\": \"$miner_total_hr\"}" <<< "$miner_json")
+[[ -n "$miner_total_share" ]] && miner_json=$(jq ". + {\"total_share\": \"$miner_total_share\"}" <<< "$miner_json")
+[[ -n "$miner_total_badshare" ]] && miner_json=$(jq ". + {\"total_badshare\": \"$miner_total_badshare\"}" <<< "$miner_json")
+[[ -n "$miner_ver" && "$miner_ver" != "null" ]] && miner_json=$(jq ". + {\"ver\": \"$miner_ver\"}" <<< "$miner_json")
+
+miner_json=$(jq ". + {\"hr\": $miner_hr_json}" <<< "$miner_json")
+miner_json=$(jq ". + {\"share\": $miner_share_json}" <<< "$miner_json")
+miner_json=$(jq ". + {\"badshare\": $miner_badshare_json}" <<< "$miner_json")
+[[ "$busid_json" != '{}' ]] && miner_json=$(jq ". + {\"busid\": $busid_json}" <<< "$miner_json")
+
+echo "$miner_json" | jq -c '.'
