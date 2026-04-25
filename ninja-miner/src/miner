@@ -5,7 +5,6 @@
 ### os.dog integration: @osdog
 ###
 ####################################################################################
-. /dog/colors
 
 cd `dirname $0`
 . ./utils.sh
@@ -19,7 +18,8 @@ CFG_FILENAME="miner.cfg"
 
 #	custom package variables
 ####################################################################################
-LOG="/dog/log/ninja-miner.log"
+LOG="/var/log/osdog/miners/ninja-miner.log"
+mkdir -p /var/log/osdog/miners
 
 #	custom package body
 ####################################################################################
@@ -32,14 +32,12 @@ remainingAddition=$REMAINING_ARGS
 echo "> remaining args: $remainingAddition"
 
 # Parse POOL to get node address
-# Expected format: grpc://host:port or host:port or host
 NODE_ADDR="$POOL"
 if [[ ! "$NODE_ADDR" =~ ^grpc:// ]]; then
     NODE_ADDR="grpc://$NODE_ADDR"
 fi
 
-$LINE
-echo -e "${GREEN}> Starting ninja-miner GPU miner${WHITE}"
+echo "> Starting ninja-miner GPU miner"
 echo "> Node: $NODE_ADDR"
 echo "> Pubkey: $TEMPLATE"
 echo "> API Port: $API_PORT"
