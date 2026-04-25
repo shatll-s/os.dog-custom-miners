@@ -1,0 +1,96 @@
+#!/bin/bash
+
+####################################################################################
+###
+### racer GPU stats
+### os.dog integration: @osdog
+###
+####################################################################################
+
+# os.dog stats output format:
+# {
+#   "miner": "racer",
+#   "algo": "blake3",
+#   "ver": "0.5.2",
+#   "online": 1711234567,              // unix timestamp when miner started
+#   "total_hr": "25345148",            // total hashrate (string, H/s)
+#   "total_share": "31",               // total accepted shares (string)
+#   "total_badshare": "0",             // total rejected shares (string)
+#   "hr": [3169026, 3168905, ...],     // per-GPU hashrate array
+#   "share": [6, 5, 2, ...],          // per-GPU accepted shares array
+#   "badshare": [0, 0, 0, ...],       // per-GPU rejected shares array
+#   "temp": [65, 63, ...],            // per-GPU temperature array (optional)
+#   "fan": [55, 50, ...],             // per-GPU fan speed array (optional)
+#   "busid": {"0":"01","1":"02",...}   // per-GPU bus ID object (hex, lowercase)
+# }
+
+cd `dirname $0`
+
+PROFILE="$1"
+[[ -z "$PROFILE" || ! -f "$PROFILE" ]] && echo "Usage: $0 <profile.json>" && exit 1
+
+API_PORT=$(jq -r '.api_port // 45545' "$PROFILE")
+
+miner="racer"
+API_TIMEOUT=5
+
+json_data=$(curl -s --connect-timeout 2 --max-time $API_TIMEOUT "http://localhost:$API_PORT/" 2>/dev/null)
+[[ -z "$json_data" ]] && exit 1
+
+miner_ver=$(echo "$json_data" | jq -r '.version // "unknown"')
+miner_algo=$(echo "$json_data" | jq -r '.algo // "unknown"')
+uptime=$(echo "$json_data" | jq -r '.uptime // empty')
+
+miner_online=""
+if [[ -n "$uptime" && "$uptime" != "null" ]]; then
+    miner_online=$(( $(date +%s) - uptime ))
+fi
+
+devCount=$(echo "$json_data" | jq '.devices | length')
+
+miner_hr_json=$(echo "$json_data" | jq '[.devices[].hashrate | floor]')
+miner_share_json=$(echo "$json_data" | jq '[.devices[].accepted]')
+miner_badshare_json=$(echo "$json_data" | jq '[.devices[].rejected]')
+
+# Bus IDs as object {"0": "01", "1": "02", ...}
+busid_json='{}'
+for ((i=0; i < devCount; i++)); do
+    bus_id=$(echo "$json_data" | jq -r ".devices[$i].bus_id // empty")
+    if [[ -n "$bus_id" ]]; then
+        busid_raw=$(echo "$bus_id" | cut -d':' -f1 | tr '[:upper:]' '[:lower:]')
+        [[ ${#busid_raw} -eq 1 ]] && busid_raw="0$busid_raw"
+        busid_json=$(jq -n --argjson data "$busid_json" --arg key "$i" --arg value "$busid_raw" \
+            '$data + { ($key): $value }')
+    fi
+done
+
+# Calculate totals
+miner_total_hr=0
+miner_total_share=0
+miner_total_badshare=0
+
+for ((i=0; i < devCount; i++)); do
+    hr=$(echo "$miner_hr_json" | jq -r ".[$i]")
+    share=$(echo "$miner_share_json" | jq -r ".[$i]")
+    badshare=$(echo "$miner_badshare_json" | jq -r ".[$i]")
+    miner_total_hr=$((miner_total_hr + hr))
+    miner_total_share=$((miner_total_share + share))
+    miner_total_badshare=$((miner_total_badshare + badshare))
+done
+
+# Build output JSON
+miner_json=$(jq -n "{\"miner\": \"$miner\"}")
+
+[[ -n "$miner_algo" && "$miner_algo" != "null" ]] && miner_json=$(jq ". + {\"algo\": \"$miner_algo\"}" <<< "$miner_json")
+[[ -n "$miner_online" ]] && miner_json=$(jq ". + {\"online\": \"$miner_online\"}" <<< "$miner_json")
+[[ -n "$miner_total_hr" ]] && miner_json=$(jq ". + {\"total_hr\": \"$miner_total_hr\"}" <<< "$miner_json")
+[[ -n "$miner_total_share" ]] && miner_json=$(jq ". + {\"total_share\": \"$miner_total_share\"}" <<< "$miner_json")
+[[ -n "$miner_total_badshare" ]] && miner_json=$(jq ". + {\"total_badshare\": \"$miner_total_badshare\"}" <<< "$miner_json")
+[[ -n "$miner_ver" && "$miner_ver" != "null" ]] && miner_json=$(jq ". + {\"ver\": \"$miner_ver\"}" <<< "$miner_json")
+
+miner_json=$(jq ". + {\"hr\": $miner_hr_json}" <<< "$miner_json")
+miner_json=$(jq ". + {\"share\": $miner_share_json}" <<< "$miner_json")
+miner_json=$(jq ". + {\"badshare\": $miner_badshare_json}" <<< "$miner_json")
+[[ "$busid_json" != '{}' ]] && miner_json=$(jq ". + {\"busid\": $busid_json}" <<< "$miner_json")
+
+echo "$miner_json" | jq -c '.'
