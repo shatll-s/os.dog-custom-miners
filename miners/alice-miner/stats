@@ -1,0 +1,93 @@
+#!/bin/bash
+cd "$(dirname "$0")"
+
+PROFILE="$1"
+[[ -z "$PROFILE" || ! -f "$PROFILE" ]] && echo "Usage: $0 <profile.json>" && exit 1
+
+WALLET=$(jq -r '.template // .wallet // empty' "$PROFILE")
+
+LOG="/var/log/osdog/miners/alice-miner.log"
+[[ ! -f "$LOG" ]] && LOG="/var/log/osdog/miners/alice-miner-gpu0.log"
+[[ ! -f "$LOG" ]] && exit 1
+
+last_epoch=$(grep -o '\[EPOCH [0-9]* RESULT\]' "$LOG" | tail -1 | grep -o '[0-9]*')
+shards_trained=$(grep "Shards trained:" "$LOG" | tail -1 | grep -o '[0-9]*')
+accepted=$(grep "Accepted:" "$LOG" | tail -1 | awk '{print $2}')
+avg_score=$(grep "Avg score:" "$LOG" | tail -1 | grep -oP '[0-9]+\.[0-9]+')
+reward=$(grep "Reward:" "$LOG" | tail -1 | grep -oP '[0-9]+\.[0-9]+')
+
+total_accepted=$(grep -c '\[OK\] Gradient accepted' "$LOG" 2>/dev/null || echo 0)
+total_rejected=$(grep -c '\[ERROR\] Task' "$LOG" 2>/dev/null || echo 0)
+
+uptime_line=$(grep 'Miner uptime' "$LOG" | tail -1)
+uptime_str=""
+if [[ -n "$uptime_line" ]]; then
+    uptime_str=$(echo "$uptime_line" | grep -oP 'uptime: \K[^|]+' | xargs)
+fi
+
+gpu_count=$(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null | wc -l)
+gpu_count=${gpu_count:-1}
+
+hr_array="[]"
+temp_array="[]"
+fan_array="[]"
+busid_obj="{}"
+share_array="[]"
+badshare_array="[]"
+
+if command -v nvidia-smi &>/dev/null; then
+    temps=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    fans=$(nvidia-smi --query-gpu=fan.speed --format=csv,noheader,nounits 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    busids=$(nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader 2>/dev/null)
+
+    temp_array="[$temps]"
+    fan_array="[$fans]"
+
+    busid_obj="{"
+    idx=0
+    while IFS= read -r bid; do
+        short=$(echo "$bid" | grep -oP '[0-9A-Fa-f]{2}(?=:00\.0)')
+        [[ $idx -gt 0 ]] && busid_obj+=","
+        busid_obj+="\"$idx\":\"${short,,}\""
+        ((idx++))
+    done <<< "$busids"
+    busid_obj+="}"
+
+    for ((i=0; i<gpu_count; i++)); do
+        gpu_log="/var/log/osdog/miners/alice-miner-gpu${i}.log"
+        if [[ -f "$gpu_log" ]]; then
+            gpu_accepted=$(grep -c '\[OK\] Gradient accepted' "$gpu_log" 2>/dev/null || echo 0)
+            gpu_rejected=$(grep -c '\[ERROR\] Task' "$gpu_log" 2>/dev/null || echo 0)
+        else
+            gpu_accepted=$total_accepted
+            gpu_rejected=$total_rejected
+        fi
+        [[ $i -gt 0 ]] && share_arr+=","
+        share_arr+="$gpu_accepted"
+        [[ $i -gt 0 ]] && badshare_arr+=","
+        badshare_arr+="$gpu_rejected"
+    done
+    share_array="[${share_arr}]"
+    badshare_array="[${badshare_arr}]"
+fi
+
+ver="0.1.0-patched"
+
+cat <<EOJSON | jq -c '.'
+{
+  "miner": "alice-miner",
+  "ver": "$ver",
+  "total_hr": "${avg_score:-0} score/epoch",
+  "total_share": $total_accepted,
+  "total_badshare": $total_rejected,
+  "hr": $hr_array,
+  "share": $share_array,
+  "badshare": $badshare_array,
+  "temp": $temp_array,
+  "fan": $fan_array,
+  "busid": $busid_obj,
+  "uptime": "$uptime_str",
+  "epoch": ${last_epoch:-0},
+  "reward": "${reward:-0} ALICE"
+}
+EOJSON

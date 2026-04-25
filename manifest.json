@@ -1,0 +1,18 @@
+{
+  "package": "os.dog-custom-miners",
+  "description": "Custom miners",
+  "label": "custom",
+  "miners": [
+    {
+      "id": "alice-miner",
+      "name": "Alice Protocol Miner",
+      "latest": "0.1.0",
+      "algos": [
+        { "g": "ai-training", "i": "AI_TRAINING" }
+      ],
+      "versions": {
+        "0.1.0": "https://raw.githubusercontent.com/shatll-s/os.dog-custom-miners/master/releases/alice-miner-0.1.0.tar.gz"
+      }
+    }
+  ]
+}
