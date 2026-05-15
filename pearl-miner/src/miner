@@ -1,0 +1,51 @@
+#!/bin/bash
+####################################################################################
+###
+### pearl-miner GPU miner
+### os.dog integration: @osdog
+###
+####################################################################################
+
+cd `dirname $0`
+. ./utils.sh
+
+PROFILE="$1"
+if [[ -z "$PROFILE" || ! -f "$PROFILE" ]]; then
+    echo "Usage: ./miner /path/to/profile.json"
+    exit 1
+fi
+
+POOL=$(jq -r '.pool // empty' "$PROFILE")
+TEMPLATE=$(jq -r '.template // empty' "$PROFILE")
+ADDITION=$(jq -r '.addition // empty' "$PROFILE")
+
+[[ -z "$POOL" ]] && POOL="84.32.220.219:9000"
+
+LOG="/var/log/osdog/miners/pearl-miner.log"
+mkdir -p /var/log/osdog/miners
+
+ADDITION="${ADDITION%%#*}"
+REMAINING_ARGS=""
+parse_args "$ADDITION" devices
+remainingAddition=$REMAINING_ARGS
+
+echo "> additional args: $ADDITION"
+echo "> remaining args: $remainingAddition"
+
+echo "> Starting pearl-miner"
+echo "> Pool: $POOL"
+echo "> User: $TEMPLATE"
+
+# Track start time for stats uptime
+date +%s > /tmp/pearl-miner.start
+
+batch="./pearl-miner --host $POOL --user $TEMPLATE"
+[[ -n "$remainingAddition" ]] && batch+=" $remainingAddition"
+
+if [[ -n "$devices" ]]; then
+  echo "CUDA_VISIBLE_DEVICES=$devices $batch"
+  export CUDA_VISIBLE_DEVICES=$devices
+fi
+
+echo "$batch"
+unbuffer $batch 2>&1 | tee $LOG
