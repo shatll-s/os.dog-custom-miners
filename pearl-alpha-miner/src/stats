@@ -1,0 +1,176 @@
+#!/bin/bash
+
+####################################################################################
+###
+### pearl-alpha-miner GPU stats
+### os.dog integration: @osdog
+###
+####################################################################################
+
+# os.dog stats output format:
+# {
+#   "miner": "pearl-alpha-miner",
+#   "algo": "pearl",
+#   "ver": "1.5-beta",
+#   "online": 1711234567,
+#   "total_hr": "98450000000000",       // H/s
+#   "total_share": "31",
+#   "total_badshare": "0",
+#   "hr": [54110000000000, ...],         // per-GPU H/s
+#   "share": [...],
+#   "badshare": [...],
+#   "busid": {"0":"01","1":"02",...}
+# }
+
+cd `dirname $0`
+
+PROFILE="$1"
+[[ -z "$PROFILE" || ! -f "$PROFILE" ]] && echo "Usage: $0 <profile.json>" && exit 1
+
+miner="pearl-alpha-miner"
+algo="pearl"
+ver="1.5-beta"
+LOG="/var/log/osdog/miners/pearl-alpha-miner.log"
+
+[[ ! -f "$LOG" ]] && exit 1
+
+fill_zeros() {
+    local count="$1"
+    [[ "$count" -le 0 ]] && echo '[]' && return
+    local out="["
+    for ((i=0; i<count; i++)); do
+        [[ $i -gt 0 ]] && out+=","
+        out+="0"
+    done
+    out+="]"
+    echo "$out"
+}
+
+# Detect GPUs and bus IDs
+gpu_count=0
+busid_json='{}'
+
+if command -v nvidia-smi >/dev/null 2>&1; then
+    mapfile -t bus_lines < <(nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader 2>/dev/null)
+    gpu_count=${#bus_lines[@]}
+
+    for ((i=0; i<gpu_count; i++)); do
+        busid_raw=$(echo "${bus_lines[$i]}" | cut -d':' -f2 | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+        [[ ${#busid_raw} -eq 1 ]] && busid_raw="0$busid_raw"
+        busid_json=$(jq -n --argjson data "$busid_json" --arg key "$i" --arg value "$busid_raw" \
+            '$data + { ($key): $value }')
+    done
+fi
+
+# Parse miner log: status lines like
+#   ...gpu=N:<name> component=miner status ... hashrate_th_s=XX.XX ...
+#   ...gpu=system   component=miner status ... hashrate_th_s=YY.YY ...
+# Strategy: filter status lines first, then take last 400 — robust against
+# fast-churning found_candidate/submitted noise in the raw log.
+declare -A hash_rates
+total_th="0"
+
+while IFS= read -r line; do
+    gpu_id=""
+    hash_val=""
+
+    if [[ $line =~ gpu=([0-9]+): ]]; then
+        gpu_id="${BASH_REMATCH[1]}"
+    elif [[ $line =~ gpu=system ]]; then
+        gpu_id="total"
+    fi
+
+    if [[ $line =~ hashrate_th_s=([0-9.]+) ]]; then
+        hash_val="${BASH_REMATCH[1]}"
+    fi
+
+    if [[ "$gpu_id" == "total" && -n "$hash_val" ]]; then
+        total_th="$hash_val"
+    elif [[ -n "$gpu_id" && -n "$hash_val" ]]; then
+        hash_rates[$gpu_id]="$hash_val"
+    fi
+done < <(sed -E 's/\x1B\[[0-9;]*[a-zA-Z]//g; s/\x1B\][^\a]*\a//g' "$LOG" 2>/dev/null | grep -a "component=miner status" | tail -n 1000)
+
+# Determine array length
+max_gpu=-1
+for g in "${!hash_rates[@]}"; do
+    (( g > max_gpu )) && max_gpu=$g
+done
+hr_len=$(( max_gpu + 1 ))
+(( gpu_count > hr_len )) && hr_len=$gpu_count
+
+# Build per-GPU hashrate array (TH/s -> H/s, ×1e12)
+hr_json="["
+total_hr_sum=0
+for ((i=0; i<hr_len; i++)); do
+    v="${hash_rates[$i]:-0}"
+    # int(v * 1e12); awk for float math
+    hs_int=$(awk -v x="$v" 'BEGIN{printf "%.0f", x * 1000000000000}')
+    total_hr_sum=$(awk -v a="$total_hr_sum" -v b="$hs_int" 'BEGIN{printf "%.0f", a + b}')
+    [[ $i -gt 0 ]] && hr_json+=","
+    hr_json+="$hs_int"
+done
+hr_json+="]"
+[[ "$hr_len" -eq 0 ]] && hr_json='[]'
+
+# Total: prefer gpu=system value if present, else sum of per-GPU
+if [[ "$total_th" != "0" ]]; then
+    total_hr=$(awk -v x="$total_th" 'BEGIN{printf "%.0f", x * 1000000000000}')
+else
+    total_hr="$total_hr_sum"
+fi
+
+# Shares: per-GPU counts from "gpu=N:" prefix on submitted/rejected lines.
+# Strip ANSI once, reuse the result.
+clean_log=$(sed -E 's/\x1B\[[0-9;]*[a-zA-Z]//g; s/\x1B\][^\a]*\a//g' "$LOG" 2>/dev/null)
+
+declare -A share_per_gpu
+declare -A badshare_per_gpu
+
+while IFS= read -r line; do
+    [[ $line =~ gpu=([0-9]+): ]] && share_per_gpu[${BASH_REMATCH[1]}]=$(( ${share_per_gpu[${BASH_REMATCH[1]}]:-0} + 1 ))
+done < <(echo "$clean_log" | grep -a "component=share submitted")
+
+while IFS= read -r line; do
+    [[ $line =~ gpu=([0-9]+): ]] && badshare_per_gpu[${BASH_REMATCH[1]}]=$(( ${badshare_per_gpu[${BASH_REMATCH[1]}]:-0} + 1 ))
+done < <(echo "$clean_log" | grep -a "component=share rejected")
+
+# Build per-GPU JSON arrays + totals
+share_arr=""
+badshare_arr=""
+total_share=0
+total_badshare=0
+for ((i=0; i<hr_len; i++)); do
+    s="${share_per_gpu[$i]:-0}"
+    b="${badshare_per_gpu[$i]:-0}"
+    total_share=$(( total_share + s ))
+    total_badshare=$(( total_badshare + b ))
+    [[ $i -gt 0 ]] && share_arr+="," && badshare_arr+=","
+    share_arr+="$s"
+    badshare_arr+="$b"
+done
+share_json="[${share_arr:-0}]"
+badshare_json="[${badshare_arr:-0}]"
+[[ "$hr_len" -eq 0 ]] && share_json='[]' && badshare_json='[]'
+
+# Uptime
+miner_online=""
+[[ -f /tmp/pearl-alpha-miner.start ]] && miner_online=$(cat /tmp/pearl-alpha-miner.start)
+
+# Build output JSON
+miner_json=$(jq -n \
+    --arg miner "$miner" \
+    --arg algo "$algo" \
+    --arg ver "$ver" \
+    --arg total_hr "$total_hr" \
+    --arg total_share "$total_share" \
+    --arg total_badshare "$total_badshare" \
+    --argjson hr "$hr_json" \
+    --argjson share "$share_json" \
+    --argjson badshare "$badshare_json" \
+    --argjson busid "$busid_json" \
+    '{$miner, $algo, $ver, $total_hr, $total_share, $total_badshare, $hr, $share, $badshare, $busid}')
+
+[[ -n "$miner_online" ]] && miner_json=$(jq ". + {\"online\": \"$miner_online\"}" <<< "$miner_json")
+
+echo "$miner_json" | jq -c '.'
