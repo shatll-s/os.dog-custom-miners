@@ -1,0 +1,163 @@
+#!/bin/bash
+
+####################################################################################
+###
+### lpminer GPU stats
+### os.dog integration: @osdog
+###
+####################################################################################
+
+# os.dog stats output format:
+# {
+#   "miner": "lpminer",
+#   "algo": "pearl",
+#   "ver": "0.0.94",
+#   "online": 1711234567,
+#   "total_hr": "25345148",
+#   "total_share": "31",
+#   "total_badshare": "0",
+#   "hr": [3169026, 3168905, ...],
+#   "share": [6, 5, 2, ...],
+#   "badshare": [0, 0, 0, ...],
+#   "busid": {"0":"01","1":"02",...}
+# }
+
+cd `dirname $0`
+
+PROFILE="$1"
+[[ -z "$PROFILE" || ! -f "$PROFILE" ]] && echo "Usage: $0 <profile.json>" && exit 1
+
+miner="lpminer"
+algo="pearl"
+ver="0.1.6"
+LOG="/var/log/osdog/miners/lpminer.log"
+NATIVE_STATS="${LP_HIVE_STATS_FILE:-/var/run/hive-miner-lpminer.stats.json}"
+
+# Fill JSON array of `count` zeros
+fill_zeros() {
+    local count="$1"
+    [[ "$count" -le 0 ]] && echo '[]' && return
+    local out="["
+    for ((i=0; i<count; i++)); do
+        [[ $i -gt 0 ]] && out+=","
+        out+="0"
+    done
+    out+="]"
+    echo "$out"
+}
+
+# Bus IDs from nvidia-smi
+gpu_count=0
+busid_json='{}'
+if command -v nvidia-smi >/dev/null 2>&1; then
+    mapfile -t bus_lines < <(nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader 2>/dev/null)
+    gpu_count=${#bus_lines[@]}
+
+    for ((i=0; i<gpu_count; i++)); do
+        busid_raw=$(echo "${bus_lines[$i]}" | cut -d':' -f2 | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+        [[ ${#busid_raw} -eq 1 ]] && busid_raw="0$busid_raw"
+        busid_json=$(jq -n --argjson data "$busid_json" --arg key "$i" --arg value "$busid_raw" \
+            '$data + { ($key): $value }')
+    done
+fi
+
+hr_json=""
+share_json=""
+badshare_json=""
+total_hr=0
+total_share=0
+total_badshare=0
+miner_online=""
+
+# Native stats file (lpminer writes it when MINER_NAME=lpminer is exported).
+# Shape: {hs:[...], hs_units:"khs"|"hs"|"mhs", ar:[acc, rej], uptime, ver, ...}
+if [[ -s "$NATIVE_STATS" ]]; then
+    native=$(cat "$NATIVE_STATS" 2>/dev/null)
+    if jq -e . >/dev/null 2>&1 <<< "$native"; then
+        units=$(jq -r '.hs_units // "hs"' <<< "$native")
+        # Convert .hs[] to H/s based on hs_units
+        case "$units" in
+            mhs) mul=1000000 ;;
+            khs) mul=1000 ;;
+            *)   mul=1 ;;
+        esac
+        hr_json=$(jq --argjson m "$mul" '[.hs[]? // 0 | (. * $m) | floor]' <<< "$native")
+        total_hr=$(jq --argjson m "$mul" '[.hs[]? // 0] | add // 0 | (. * $m) | floor' <<< "$native")
+        total_share=$(jq -r '.ar[0] // 0' <<< "$native")
+        total_badshare=$(jq -r '.ar[1] // 0' <<< "$native")
+        uptime_s=$(jq -r '.uptime // 0' <<< "$native")
+        if [[ "$uptime_s" =~ ^[0-9]+$ && "$uptime_s" -gt 0 ]]; then
+            miner_online=$(( $(date +%s) - uptime_s ))
+        fi
+        # Per-GPU share split isn't exposed by native stats — bucket totals into GPU 0.
+        share_json=$(fill_zeros "$gpu_count")
+        badshare_json=$(fill_zeros "$gpu_count")
+    fi
+fi
+
+# Fallback: parse last `stratum*stats:` line from log when native file missing.
+# Log line: `... stratum stats: ... kernel_tmac_s=X.XXX ... accepted=N rejected=N elapsed=N.Ns ...`
+# 1 tmac/s ≈ 1e12 H/s (matches lpminer's own hs * 1e9 → khs convention).
+if [[ -z "$hr_json" && -f "$LOG" ]]; then
+    line=$(perl -pe 's/\e\[[0-9;]*[A-Za-z]//g; s/\r$//' "$LOG" 2>/dev/null \
+        | grep 'stratum.*stats:' \
+        | tail -1)
+    if [[ -n "$line" ]]; then
+        tmac=$(sed -n 's/.*kernel_tmac_s=\([0-9.]*\).*/\1/p' <<< "$line")
+        accepted=$(sed -n 's/.* accepted=\([0-9]*\) .*/\1/p' <<< "$line")
+        rejected=$(sed -n 's/.* rejected=\([0-9]*\) .*/\1/p' <<< "$line")
+        elapsed=$(sed -n 's/.* elapsed=\([0-9.]*\)s .*/\1/p' <<< "$line")
+        [[ -z "$tmac" ]] && tmac=0
+        [[ -z "$accepted" ]] && accepted=0
+        [[ -z "$rejected" ]] && rejected=0
+        [[ -z "$elapsed" ]] && elapsed=0
+        total_hr=$(awk -v t="$tmac" 'BEGIN { printf "%d", t * 1000000000000.0 }')
+        total_share=$accepted
+        total_badshare=$rejected
+        # Single aggregated rate goes to slot 0; other slots zero (fallback only).
+        if [[ "$gpu_count" -gt 0 ]]; then
+            hr_json="["
+            for ((i=0; i<gpu_count; i++)); do
+                [[ $i -gt 0 ]] && hr_json+=","
+                [[ $i -eq 0 ]] && hr_json+="$total_hr" || hr_json+="0"
+            done
+            hr_json+="]"
+        else
+            hr_json="[$total_hr]"
+        fi
+        share_json=$(fill_zeros "$gpu_count")
+        badshare_json=$(fill_zeros "$gpu_count")
+        if [[ "$elapsed" != "0" ]]; then
+            elapsed_i=$(awk -v e="$elapsed" 'BEGIN { printf "%d", e }')
+            miner_online=$(( $(date +%s) - elapsed_i ))
+        fi
+    fi
+fi
+
+# Final fallback uptime: start file from miner script
+if [[ -z "$miner_online" && -f /tmp/lpminer.start ]]; then
+    miner_online=$(cat /tmp/lpminer.start)
+fi
+
+# Default empty arrays
+[[ -z "$hr_json" || "$hr_json" == "null" ]] && hr_json=$(fill_zeros "$gpu_count")
+[[ -z "$share_json" || "$share_json" == "null" ]] && share_json=$(fill_zeros "$gpu_count")
+[[ -z "$badshare_json" || "$badshare_json" == "null" ]] && badshare_json=$(fill_zeros "$gpu_count")
+
+# Build output JSON
+miner_json=$(jq -n \
+    --arg miner "$miner" \
+    --arg algo "$algo" \
+    --arg ver "$ver" \
+    --arg total_hr "$total_hr" \
+    --arg total_share "$total_share" \
+    --arg total_badshare "$total_badshare" \
+    --argjson hr "$hr_json" \
+    --argjson share "$share_json" \
+    --argjson badshare "$badshare_json" \
+    --argjson busid "$busid_json" \
+    '{$miner, $algo, $ver, $total_hr, $total_share, $total_badshare, $hr, $share, $badshare, $busid}')
+
+[[ -n "$miner_online" ]] && miner_json=$(jq ". + {\"online\": \"$miner_online\"}" <<< "$miner_json")
+
+echo "$miner_json" | jq -c '.'

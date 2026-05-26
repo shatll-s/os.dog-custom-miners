@@ -1,0 +1,101 @@
+#!/bin/bash
+####################################################################################
+###
+### lpminer (LuckyPool Pearl) GPU miner
+### os.dog integration: @osdog
+###
+### Pearl algo only (the miner's --algo is a compatibility alias and is ignored
+### by the binary). profile.algo is also IGNORED (carries os.dog display algo,
+### not miner runtime algo).
+###
+### Multi-pool failover is handled natively by lpminer (>= 0.1.x): pass
+### comma-separated URIs to --pool (first primary, rest fallback). Backup pools
+### may live in the os.dog "pool" field (comma-separated) and/or as extra
+### `--pool URL` entries in "addition"; both are merged here.
+###
+####################################################################################
+
+cd `dirname $0`
+. ./utils.sh
+
+PROFILE="$1"
+if [[ -z "$PROFILE" || ! -f "$PROFILE" ]]; then
+    echo "Usage: ./miner /path/to/profile.json"
+    exit 1
+fi
+
+POOL=$(jq -r '.pool // empty' "$PROFILE")
+TEMPLATE=$(jq -r '.template // empty' "$PROFILE")
+ADDITION=$(jq -r '.addition // empty' "$PROFILE")
+
+LOG="/var/log/osdog/miners/lpminer.log"
+mkdir -p /var/log/osdog/miners
+
+ADDITION="${ADDITION%%#*}"
+
+# Pull any extra --pool entries out of addition; lpminer takes a single --pool
+# with comma-separated URIs, so we merge primary (.pool) + extras into one list.
+EXTRA_POOLS=()
+read -ra _tokens <<< "$ADDITION"
+_kept=()
+for ((i=0; i<${#_tokens[@]}; i++)); do
+    t="${_tokens[i]}"
+    if [[ "$t" == "--pool" ]]; then
+        if (( i + 1 < ${#_tokens[@]} )); then
+            EXTRA_POOLS+=("${_tokens[i+1]}")
+            ((i++)); continue
+        fi
+    elif [[ "$t" == --pool=* ]]; then
+        EXTRA_POOLS+=("${t#--pool=}")
+        continue
+    fi
+    _kept+=("$t")
+done
+ADDITION="${_kept[*]}"
+
+REMAINING_ARGS=""
+parse_args "$ADDITION" devices device worker
+remainingAddition=$REMAINING_ARGS
+
+# Build the comma-separated pool list: primary first, then addition backups.
+POOL_LIST="$POOL"
+for p in "${EXTRA_POOLS[@]}"; do
+    [[ -n "$p" ]] && POOL_LIST="${POOL_LIST:+$POOL_LIST,}$p"
+done
+
+echo "> additional args: $ADDITION"
+echo "> remaining args: $remainingAddition"
+
+echo "> Starting lpminer"
+echo "> Pool: $POOL_LIST"
+echo "> Wallet: $TEMPLATE"
+
+# Required for GPU index ↔ PCI bus mapping
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+
+# Lets lpminer write /var/run/hive-miner-lpminer.stats.json (stats script
+# prefers that file over log parsing).
+export CUSTOM_NAME="lpminer"
+export MINER_NAME="lpminer"
+export CUSTOM_VERSION="0.1.6"
+
+# We're not a tty; disable hotkey input handling.
+export LP_DISABLE_HOTKEYS="${LP_DISABLE_HOTKEYS:-1}"
+# Disable lpminer's built-in crash uploader (unset; was http://193.70.33.43:8787/upload).
+unset LP_CRASH_UPLOAD_URL
+
+# Track start time as fallback uptime when native stats not present
+date +%s > /tmp/lpminer.start
+
+# --pearl-mine forces Pearl mining phase; --algo pearl kept for compatibility.
+batch="./lpminer --pearl-mine --algo pearl --pool $POOL_LIST --wallet $TEMPLATE"
+[[ -n "$worker"  ]] && batch+=" --worker $worker"
+if [[ -n "$device" ]]; then
+    batch+=" --device $device"
+elif [[ -n "$devices" ]]; then
+    batch+=" --devices $devices"
+fi
+[[ -n "$remainingAddition" ]] && batch+=" $remainingAddition"
+
+echo "$batch"
+unbuffer $batch 2>&1 | tee $LOG
