@@ -1,0 +1,107 @@
+#!/bin/bash
+
+#	example
+#
+#	{
+#		"miner":"lolminer",
+#		"algo":"nexapow",
+#		"online":"1707474764",
+#		"total_hr":"71842910",
+#		"total_share":"1",
+#		"total_badshare":"0",
+#		"ver":"1.82a",
+#		"temp":[31,28,29,29,31,29,30,30],
+#		"temp2":[38,35,35,35,37,34,37,37],
+#		"temp3":[0,0,0,0,0,0,0,0],
+#		"fan":[45,45,44,45,44,44,45,46],
+#		"hr":[11580000,27740000,0,0,2990000,0,22650000,6880000],
+#		"share":[0,1,0,0,0,0,0,0],
+#		"badshare":[0,0,0,0,0,0,0,0],
+#		"invshare":[0,0,0,0,0,0,0,0],
+#		"busid":["03","05","06","07","09","0b","0c","0d"],
+#		"coin":"NEXA"
+#	}
+
+algo="martis"
+miner="martis-node"
+ver="0.32"
+multiplier=1000000
+linesToSearch=200
+
+busid_json='[]'
+hr_json='[]'
+total_hr=0
+
+GPU_STATS="/run/dog/gpuStats"
+gpuCount=$(jq '.gpu | length' < "$GPU_STATS")
+
+for (( i=0; i < gpuCount; i++ )); do
+    dir="/home/user/martiscoin/node$i"
+    logFile="$dir/Martiscoin/logs/node.txt"
+    info_line=`tail -n $linesToSearch $logFile 2>/dev/null | grep -w "hash-rate" | tail -n 1`
+
+    [[ ! $info_line ]] && continue
+
+    #Calculate miner log freshness
+    maxDelay=60
+
+    time_now=`date +%s`
+    datetime_rep=`echo $info_line | awk '{print $1" "$2}' | sed 's/\[//'`
+    time_rep=`date -d "$datetime_rep" +%s`
+    diffTime=`echo $((time_now-time_rep)) | tr -d '-'`
+
+    # if last log update was > $maxDelay then exit
+    [[ "$diffTime" -gt "$maxDelay" ]] && continue
+
+    if [[ $i -eq 0 ]]; then
+      balance=`tail -n 100 $logFile | grep -w "Confirmed balance" | tail -n 1 | awk '{print $5}'`
+
+      if [[ $balance ]]; then
+        ver="$ver | $balance MSC"
+      fi
+    fi
+
+    rawHr=`echo $info_line | sed "s#.*hash-rate=\([.0-9]*\).*Hash/sec.*#\1#"`
+    rawHr=`echo "scale=0; $rawHr * $multiplier / 1" | bc -l`
+
+    busid=`jq -r ".gpu[$i].b" < "$GPU_STATS"`
+    busid_json=`jq ". += [\"$busid\"]" <<< "$busid_json"`
+
+    if [[ $rawHr =~ ^[.0-9]+$ ]]; then
+      hr=$rawHr
+      total_hr=$(echo "$total_hr + $hr" | bc)
+    else
+      hr=0
+    fi
+    hr_json=`jq ". + [$hr]" <<< "$hr_json"`
+   # break # because only 0 gpu is working
+done
+
+data=$(
+    jq -n \
+        --arg algo "$algo" \
+        --arg miner "$miner" \
+        --arg ver "$ver" \
+        --arg online "$online" \
+        --argjson busid "$busid_json" \
+        --argjson hr "$hr_json" \
+        --argjson total_hr "$total_hr" \
+    '{
+        miner: $miner,
+        ver: $ver,
+        algo: $algo,
+        total_hr: $total_hr,
+        busid: $busid,
+        hr: $hr,
+    }'
+)
+
+#Let's assume that dotnet is used only by this miner
+minername="dotnet"
+online_raw=`ps -C $minername -o etimes= | awk '{print $1}' | tac | tail -n 1`
+if [[ ! -z $online_raw ]]; then
+  online=$(date --date "-$online_raw sec" +%s) #absolute time
+  data=`jq ". += {\"online\": $online}" <<< "$data"`
+fi
+
+echo "$data" | jq -c
