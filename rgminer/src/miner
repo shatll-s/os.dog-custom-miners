@@ -1,0 +1,60 @@
+#!/bin/bash
+####################################################################################
+###
+### rgminer GPU miner
+### os.dog integration: @osdog
+###
+### Supports algos: pearl, memhash, exfer-argon2id
+### Multi-pool: pass comma-separated list in .pool (rgminer handles failover natively)
+###
+### NOTE: profile.algo is IGNORED (it carries the os.dog display algo, not the
+### miner runtime algo). Pass `--algo pearl` (or memhash / exfer-argon2id) in
+### `.addition`. Default when --algo is absent: pearl.
+###
+####################################################################################
+
+cd `dirname $0`
+. ./utils.sh
+
+PROFILE="$1"
+if [[ -z "$PROFILE" || ! -f "$PROFILE" ]]; then
+    echo "Usage: ./miner /path/to/profile.json"
+    exit 1
+fi
+
+POOL=$(jq -r '.pool // empty' "$PROFILE")
+TEMPLATE=$(jq -r '.template // empty' "$PROFILE")
+API_PORT=$(jq -r '.api_port // 9200' "$PROFILE")
+ADDITION=$(jq -r '.addition // empty' "$PROFILE")
+
+LOG="/var/log/osdog/miners/rgminer.log"
+mkdir -p /var/log/osdog/miners
+
+ADDITION="${ADDITION%%#*}"
+REMAINING_ARGS=""
+parse_args "$ADDITION" devices algo
+remainingAddition=$REMAINING_ARGS
+
+# Default algo if not supplied in addition
+[[ -z "$algo" ]] && algo="pearl"
+
+echo "> additional args: $ADDITION"
+echo "> remaining args: $remainingAddition"
+
+echo "> Starting rgminer"
+echo "> Algo: $algo"
+echo "> Pool: $POOL"
+echo "> Wallet: $TEMPLATE"
+echo "> API Port: $API_PORT"
+
+# Required for GPU index ↔ PCI bus mapping
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+
+free_port $API_PORT
+
+batch="./rgminer --algo $algo --stratum $POOL --wallet $TEMPLATE --api-host 127.0.0.1 --api-port $API_PORT"
+[[ -n "$devices" ]] && batch+=" --devices $devices"
+[[ -n "$remainingAddition" ]] && batch+=" $remainingAddition"
+
+echo "$batch"
+unbuffer $batch 2>&1 | tee $LOG
