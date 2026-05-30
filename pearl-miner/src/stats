@@ -29,7 +29,7 @@ PROFILE="$1"
 
 miner="pearl-miner"
 algo="pearl"
-ver="3.0"
+ver="10.0"
 LOG="/var/log/osdog/miners/pearl-miner.log"
 
 [[ ! -f "$LOG" ]] && exit 1
