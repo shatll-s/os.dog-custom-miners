@@ -2,14 +2,14 @@
 
 ####################################################################################
 ###
-### tw-pearl-miner GPU stats
+### pearl-tw-miner GPU stats
 ### os.dog integration: @osdog
 ###
 ####################################################################################
 
 # os.dog stats output format:
 # {
-#   "miner": "tw-pearl-miner",
+#   "miner": "pearl-tw-miner",
 #   "algo": "pearl",
 #   "ver": "1.4.2",
 #   "online": 1711234567,
@@ -32,10 +32,10 @@ cd `dirname $0`
 PROFILE="$1"
 [[ -z "$PROFILE" || ! -f "$PROFILE" ]] && echo "Usage: $0 <profile.json>" && exit 1
 
-miner="tw-pearl-miner"
+miner="pearl-tw-miner"
 algo="pearl"
 ver="1.4.2"
-LOG="/var/log/osdog/miners/tw-pearl-miner.log"
+LOG="/var/log/osdog/miners/pearl-tw-miner.log"
 
 [[ ! -f "$LOG" ]] && exit 1
 
@@ -124,7 +124,7 @@ badshare_json=$(fill_zeros "$gpu_count")
 
 # Uptime: read from start file written by the miner script
 miner_online=""
-[[ -f /tmp/tw-pearl-miner.start ]] && miner_online=$(cat /tmp/tw-pearl-miner.start)
+[[ -f /tmp/pearl-tw-miner.start ]] && miner_online=$(cat /tmp/pearl-tw-miner.start)
 
 # Build output JSON
 miner_json=$(jq -n \

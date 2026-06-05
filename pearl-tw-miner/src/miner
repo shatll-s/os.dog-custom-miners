@@ -1,7 +1,7 @@
 #!/bin/bash
 ####################################################################################
 ###
-### tw-pearl-miner (TW-Pool Pearl GPU miner)
+### pearl-tw-miner (TW-Pool Pearl GPU miner)
 ### os.dog integration: @osdog
 ###
 ### Pearl algo only. The binary (pearl-gpu-miner) ships its own pinned-TLS pool
@@ -30,7 +30,7 @@ POOL=$(jq -r '.pool // empty' "$PROFILE")
 TEMPLATE=$(jq -r '.template // empty' "$PROFILE")
 ADDITION=$(jq -r '.addition // empty' "$PROFILE")
 
-LOG="/var/log/osdog/miners/tw-pearl-miner.log"
+LOG="/var/log/osdog/miners/pearl-tw-miner.log"
 mkdir -p /var/log/osdog/miners
 
 ADDITION="${ADDITION%%#*}"
@@ -67,12 +67,12 @@ fi
 echo "> additional args: $ADDITION"
 echo "> remaining args: $remainingAddition"
 
-echo "> Starting tw-pearl-miner"
+echo "> Starting pearl-tw-miner"
 echo "> Pool: ${POOL_HOST:-pearl.tw-pool.com (built-in)}${POOL_PORT:+:$POOL_PORT}"
 echo "> Wallet: $TEMPLATE"
 
 # Track start time for stats uptime
-date +%s > /tmp/tw-pearl-miner.start
+date +%s > /tmp/pearl-tw-miner.start
 
 batch="./pearl-gpu-miner --wallet $TEMPLATE"
 [[ -n "$worker" ]] && batch+=" --worker $worker"
