@@ -1,0 +1,84 @@
+#!/bin/bash
+####################################################################################
+###
+### tw-pearl-miner (TW-Pool Pearl GPU miner)
+### os.dog integration: @osdog
+###
+### Pearl algo only. The binary (pearl-gpu-miner) ships its own pinned-TLS pool
+### endpoint (pearl.tw-pool.com); profile.algo carries the os.dog display algo and
+### is IGNORED at runtime.
+###
+### Pool override: the os.dog "pool" field maps to POOL_HOST/POOL_PORT env vars
+### (the binary's documented override). Blank "pool" => built-in default pool.
+### Note: --pool/--cn2 are mutually exclusive and POOL_HOST/POOL_PORT are ignored
+### when CN2 is set, so we skip the env override in that case.
+###
+### GPU selection: native --gpus 0,1 (accepts os.dog --devices/--gpus addition).
+###
+####################################################################################
+
+cd `dirname $0`
+. ./utils.sh
+
+PROFILE="$1"
+if [[ -z "$PROFILE" || ! -f "$PROFILE" ]]; then
+    echo "Usage: ./miner /path/to/profile.json"
+    exit 1
+fi
+
+POOL=$(jq -r '.pool // empty' "$PROFILE")
+TEMPLATE=$(jq -r '.template // empty' "$PROFILE")
+ADDITION=$(jq -r '.addition // empty' "$PROFILE")
+
+LOG="/var/log/osdog/miners/tw-pearl-miner.log"
+mkdir -p /var/log/osdog/miners
+
+ADDITION="${ADDITION%%#*}"
+
+# CN2 = alternate obfuscated path for restricted networks. It's a boolean flag
+# (not key=value), so detect + strip it before parse_args, which expects pairs.
+# Mutually exclusive with a custom pool host: only honour POOL_HOST/POOL_PORT
+# when CN2 is off.
+USE_CN2=0
+if [[ "$ADDITION" =~ (^|[[:space:]])--cn2($|[[:space:]]) ]]; then
+    USE_CN2=1
+    ADDITION="${ADDITION//--cn2/}"
+fi
+
+REMAINING_ARGS=""
+parse_args "$ADDITION" devices gpus worker
+remainingAddition=$REMAINING_ARGS
+
+# GPU id list: accept either os.dog "--devices" or the native "--gpus".
+GPUS="$gpus"
+[[ -z "$GPUS" ]] && GPUS="$devices"
+
+# Shared libs (libpearlkernel.so, libcudart.so.13) sit next to the binary.
+export LD_LIBRARY_PATH="$(pwd):${LD_LIBRARY_PATH:-}"
+
+if [[ "$USE_CN2" -eq 0 && -n "$POOL" ]]; then
+    url="${POOL##*://}"
+    host="${url%%:*}"
+    port="${url##*:}"
+    [[ -n "$host" ]] && export POOL_HOST="$host"
+    [[ -n "$port" && "$port" != "$host" ]] && export POOL_PORT="$port"
+fi
+
+echo "> additional args: $ADDITION"
+echo "> remaining args: $remainingAddition"
+
+echo "> Starting tw-pearl-miner"
+echo "> Pool: ${POOL_HOST:-pearl.tw-pool.com (built-in)}${POOL_PORT:+:$POOL_PORT}"
+echo "> Wallet: $TEMPLATE"
+
+# Track start time for stats uptime
+date +%s > /tmp/tw-pearl-miner.start
+
+batch="./pearl-gpu-miner --wallet $TEMPLATE"
+[[ -n "$worker" ]] && batch+=" --worker $worker"
+[[ -n "$GPUS"   ]] && batch+=" --gpus $GPUS"
+[[ "$USE_CN2" -eq 1 ]] && batch+=" --cn2"
+[[ -n "$remainingAddition" ]] && batch+=" $remainingAddition"
+
+echo "$batch"
+unbuffer $batch 2>&1 | tee $LOG

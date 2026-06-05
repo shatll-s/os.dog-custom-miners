@@ -1,0 +1,145 @@
+#!/bin/bash
+
+####################################################################################
+###
+### tw-pearl-miner GPU stats
+### os.dog integration: @osdog
+###
+####################################################################################
+
+# os.dog stats output format:
+# {
+#   "miner": "tw-pearl-miner",
+#   "algo": "pearl",
+#   "ver": "1.4.2",
+#   "online": 1711234567,
+#   "total_hr": "69000000000000",        // H/s
+#   "total_share": "31",
+#   "total_badshare": "0",
+#   "hr": [69000000000000, ...],          // per-GPU H/s
+#   "share": [...],
+#   "badshare": [...],
+#   "busid": {"0":"01","1":"02",...}
+# }
+#
+# Miner log lines we parse:
+#   "<X> TH/s avg | shares: <N> accepted <M> rejected"   (aggregate, preferred)
+#   "<X> TH/s [gpu0:<v> gpu1:<v> ...]"                    (per-GPU, TH/s)
+#   "+ share accepted ("  /  "! share rejected by pool: " (fallback share tally)
+
+cd `dirname $0`
+
+PROFILE="$1"
+[[ -z "$PROFILE" || ! -f "$PROFILE" ]] && echo "Usage: $0 <profile.json>" && exit 1
+
+miner="tw-pearl-miner"
+algo="pearl"
+ver="1.4.2"
+LOG="/var/log/osdog/miners/tw-pearl-miner.log"
+
+[[ ! -f "$LOG" ]] && exit 1
+
+# Fill JSON array of `count` zeros
+fill_zeros() {
+    local count="$1"
+    [[ "$count" -le 0 ]] && echo '[]' && return
+    local out="["
+    for ((i=0; i<count; i++)); do
+        [[ $i -gt 0 ]] && out+=","
+        out+="0"
+    done
+    out+="]"
+    echo "$out"
+}
+
+# Detect GPUs and bus IDs
+gpu_count=0
+busid_json='{}'
+
+if command -v nvidia-smi >/dev/null 2>&1; then
+    mapfile -t bus_lines < <(nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader 2>/dev/null)
+    gpu_count=${#bus_lines[@]}
+
+    for ((i=0; i<gpu_count; i++)); do
+        busid_raw=$(echo "${bus_lines[$i]}" | cut -d':' -f2 | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+        [[ ${#busid_raw} -eq 1 ]] && busid_raw="0$busid_raw"
+        busid_json=$(jq -n --argjson data "$busid_json" --arg key "$i" --arg value "$busid_raw" \
+            '$data + { ($key): $value }')
+    done
+fi
+
+clean_log=$(tail -n 1000 "$LOG" 2>/dev/null | sed -E 's/\x1B\[[0-9;]*[a-zA-Z]//g')
+
+# Aggregate hashrate in TH/s: prefer the stable cumulative "avg", fall back to a
+# plain "TH/s" reading. Convert TH/s -> H/s (×1e12).
+ths=$(echo "$clean_log" | grep -oE '[0-9]+(\.[0-9]+)? TH/s avg' | tail -1 | grep -oE '[0-9]+(\.[0-9]+)?' | head -1)
+[[ -z "$ths" ]] && ths=$(echo "$clean_log" | grep -oE '[0-9]+(\.[0-9]+)? TH/s' | tail -1 | grep -oE '[0-9]+(\.[0-9]+)?' | head -1)
+[[ -z "$ths" ]] && ths=0
+total_hr=$(awk -v t="$ths" 'BEGIN{ printf "%.0f", t * 1000000000000 }')
+
+# Per-GPU hashrate: the miner appends "[gpu0:69 gpu1:68 ...]" (TH/s) on multi-GPU
+# rigs. Use those when their count matches the rig; otherwise split evenly.
+mapfile -t per_vals < <(echo "$clean_log" | grep -oE '\[gpu0:[0-9].*\]' | tail -1 \
+    | grep -oE 'gpu[0-9]+:[0-9]+(\.[0-9]+)?' | grep -oE '[0-9]+(\.[0-9]+)?$')
+pn=${#per_vals[@]}
+
+if [[ "$pn" -gt 0 && ( "$gpu_count" -eq 0 || "$pn" -eq "$gpu_count" ) ]]; then
+    hr_json="["
+    for ((i=0; i<pn; i++)); do
+        v=$(awk -v x="${per_vals[$i]}" 'BEGIN{ printf "%.0f", x * 1000000000000 }')
+        [[ $i -gt 0 ]] && hr_json+=","
+        hr_json+="$v"
+    done
+    hr_json+="]"
+    [[ "$gpu_count" -eq 0 ]] && gpu_count=$pn
+else
+    n=$gpu_count
+    [[ "$n" -le 0 ]] && n=1
+    each=$(awk -v t="$total_hr" -v n="$n" 'BEGIN{ printf "%.0f", (n>0)? t/n : t }')
+    hr_json="["
+    for ((i=0; i<n; i++)); do
+        [[ $i -gt 0 ]] && hr_json+=","
+        hr_json+="$each"
+    done
+    hr_json+="]"
+fi
+
+# Shares (aggregate). Prefer the "shares: N accepted M rejected" tally on the avg
+# line; fall back to counting per-share accept/reject log lines.
+total_share=$(echo "$clean_log" | grep -oE 'shares: [0-9]+ accepted' | tail -1 | grep -oE '[0-9]+' | head -1)
+if [[ -z "$total_share" ]]; then
+    total_share=$(echo "$clean_log" | grep -c '+ share accepted')
+fi
+[[ -z "$total_share" ]] && total_share=0
+
+total_badshare=$(echo "$clean_log" | grep -oE '[0-9]+ rejected' | tail -1 | grep -oE '[0-9]+' | head -1)
+if [[ -z "$total_badshare" ]]; then
+    total_badshare=$(echo "$clean_log" | grep -c '! share rejected')
+fi
+[[ -z "$total_badshare" ]] && total_badshare=0
+
+# Per-GPU shares aren't exposed; report aggregate only and zero-fill per-GPU.
+share_json=$(fill_zeros "$gpu_count")
+badshare_json=$(fill_zeros "$gpu_count")
+
+# Uptime: read from start file written by the miner script
+miner_online=""
+[[ -f /tmp/tw-pearl-miner.start ]] && miner_online=$(cat /tmp/tw-pearl-miner.start)
+
+# Build output JSON
+miner_json=$(jq -n \
+    --arg miner "$miner" \
+    --arg algo "$algo" \
+    --arg ver "$ver" \
+    --arg total_hr "$total_hr" \
+    --arg total_share "$total_share" \
+    --arg total_badshare "$total_badshare" \
+    --argjson hr "$hr_json" \
+    --argjson share "$share_json" \
+    --argjson badshare "$badshare_json" \
+    --argjson busid "$busid_json" \
+    '{$miner, $algo, $ver, $total_hr, $total_share, $total_badshare, $hr, $share, $badshare, $busid}')
+
+[[ -n "$miner_online" ]] && miner_json=$(jq ". + {\"online\": \"$miner_online\"}" <<< "$miner_json")
+
+echo "$miner_json" | jq -c '.'
