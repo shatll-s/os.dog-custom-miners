@@ -35,15 +35,13 @@ mkdir -p /var/log/osdog/miners
 
 ADDITION="${ADDITION%%#*}"
 
-# CN2 = alternate obfuscated path for restricted networks. It's a boolean flag
-# (not key=value), so detect + strip it before parse_args, which expects pairs.
-# Mutually exclusive with a custom pool host: only honour POOL_HOST/POOL_PORT
-# when CN2 is off.
+# CN2 = alternate connection path for restricted networks. v1.8.x takes an
+# OPTIONAL arg: bare "--cn2" (auto relay) or "--cn2 auto|N". It's not in our
+# parse_args key list, so it (and any auto|N value) flows through untouched into
+# remainingAddition and onto the command line. We only detect its presence here
+# because --cn2 excludes a custom pool host: skip POOL_HOST/POOL_PORT when set.
 USE_CN2=0
-if [[ "$ADDITION" =~ (^|[[:space:]])--cn2($|[[:space:]]) ]]; then
-    USE_CN2=1
-    ADDITION="${ADDITION//--cn2/}"
-fi
+[[ "$ADDITION" =~ (^|[[:space:]])--cn2($|[[:space:]]) ]] && USE_CN2=1
 
 REMAINING_ARGS=""
 parse_args "$ADDITION" devices gpus worker
@@ -77,7 +75,7 @@ date +%s > /tmp/pearl-tw-miner.start
 batch="./pearl-gpu-miner --wallet $TEMPLATE"
 [[ -n "$worker" ]] && batch+=" --worker $worker"
 [[ -n "$GPUS"   ]] && batch+=" --gpus $GPUS"
-[[ "$USE_CN2" -eq 1 ]] && batch+=" --cn2"
+# --cn2 [auto|N] arrives via remainingAddition (see CN2 note above).
 [[ -n "$remainingAddition" ]] && batch+=" $remainingAddition"
 
 echo "$batch"
