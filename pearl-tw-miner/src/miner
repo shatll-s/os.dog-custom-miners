@@ -35,7 +35,7 @@ mkdir -p /var/log/osdog/miners
 
 ADDITION="${ADDITION%%#*}"
 
-# CN2 = alternate connection path for restricted networks. v1.8.x takes an
+# CN2 = alternate connection path for restricted networks. v1.9.x takes an
 # OPTIONAL arg: bare "--cn2" (auto relay) or "--cn2 auto|N". It's not in our
 # parse_args key list, so it (and any auto|N value) flows through untouched into
 # remainingAddition and onto the command line. We only detect its presence here
