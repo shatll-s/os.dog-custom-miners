@@ -11,7 +11,7 @@
 # {
 #   "miner": "pearl-alpha-miner",
 #   "algo": "pearl",
-#   "ver": "1.7.5-beta",
+#   "ver": "1.7.7",
 #   "online": 1711234567,
 #   "total_hr": "98450000000000",       // H/s
 #   "total_share": "31",
@@ -29,7 +29,7 @@ PROFILE="$1"
 
 miner="pearl-alpha-miner"
 algo="pearl"
-ver="1.7.5-beta"
+ver="1.7.7"
 LOG="/var/log/osdog/miners/pearl-alpha-miner.log"
 
 [[ ! -f "$LOG" ]] && exit 1
