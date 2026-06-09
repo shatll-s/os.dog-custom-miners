@@ -1,0 +1,145 @@
+#!/bin/bash
+####################################################################################
+###
+### btx-dexbtx — minebtx/dexbtx BTX (MatMul-PoW) GPU miner
+### os.dog integration: @osdog
+###
+### BTX = post-quantum Bitcoin Knots fork, matrix-multiply PoW. Pool minebtx.com
+### (dexbtx, PPLNS, plaintext stratum). Wallet prefix btx1z…
+###
+### Architecture: a vendored python wrapper (dexbtx_miner, run as a module — no
+### pip install) drives the prebuilt CUDA solver `btx-gbt-solve` in daemon mode.
+### The solver uses ONE GPU per process, so on a multi-GPU rig we launch one
+### dexbtx-miner process per card, each pinned via CUDA_VISIBLE_DEVICES.
+###
+### profile mapping:
+###   .pool      -> --pool host:port   (scheme stripped; blank => stratum.minebtx.com:3333)
+###   .template  -> --address          (btx1z… payout address)
+###   .addition  -> tuning + worker, e.g.:
+###       --worker myrig        worker-name base (per GPU we append -gpuN)
+###       --devices 0,1,2       which GPUs to use (default: all)  (alias: --gpus)
+###       --gpu-inputs 1        1=GPU-generated inputs (DEFAULT, required on weak-CPU rigs)
+###       --threads 2           BTX_MATMUL_SOLVER_THREADS  (CPU solve workers / GPU)
+###       --workers 2           BTX_MATMUL_PREPARE_WORKERS (CPU input prep / GPU)
+###       --batch 128           BTX_MATMUL_SOLVE_BATCH_SIZE
+###       --prefetch 8          BTX_MATMUL_PREPARE_PREFETCH_DEPTH
+###
+### NOTE on gpu_inputs: upstream docs say 0, but on our hardware (RTX 30xx Laptop,
+### few CPU cores) 0 silently CPU-falls-back / stalls and 1 saturates the GPU.
+### We default to 1. Override per-rig with `--gpu-inputs 0` if a card prefers it.
+###
+####################################################################################
+
+cd `dirname $0`
+. ./utils.sh
+
+PROFILE="$1"
+if [[ -z "$PROFILE" || ! -f "$PROFILE" ]]; then
+    echo "Usage: ./miner /path/to/profile.json"
+    exit 1
+fi
+
+POOL=$(jq -r '.pool // empty' "$PROFILE")
+TEMPLATE=$(jq -r '.template // empty' "$PROFILE")
+ADDITION=$(jq -r '.addition // empty' "$PROFILE")
+ADDITION="${ADDITION%%#*}"
+
+SRC="$(pwd)"
+BIN="$SRC/btx-gbt-solve"
+LOGDIR="/var/log/osdog/miners"
+LOG="$LOGDIR/btx-dexbtx.log"
+mkdir -p "$LOGDIR"
+
+# Pull tuning + selection keys out of .addition; anything left flows through
+# verbatim to dexbtx-miner (e.g. --nonces-per-slice, --log-level).
+REMAINING_ARGS=""
+parse_args "$ADDITION" devices gpus worker threads workers batch prefetch gpu-inputs
+remainingAddition=$REMAINING_ARGS
+
+# Proven defaults for our fleet (see header note on gpu-inputs).
+: "${gpu_inputs:=1}"
+: "${threads:=2}"
+: "${workers:=2}"
+: "${batch:=128}"
+: "${prefetch:=8}"
+
+# GPU id list: accept os.dog --devices or native --gpus; default to ALL GPUs.
+GPULIST_RAW="$gpus"
+[[ -z "$GPULIST_RAW" ]] && GPULIST_RAW="$devices"
+if [[ -z "$GPULIST_RAW" ]]; then
+    GPULIST_RAW=$(nvidia-smi --query-gpu=index --format=csv,noheader,nounits 2>/dev/null | paste -sd,)
+fi
+GPULIST_RAW="${GPULIST_RAW//[[:space:]]/}"
+IFS=',' read -ra GPULIST <<< "$GPULIST_RAW"
+
+# Pool host:port (dexbtx wants bare host:port). Strip any scheme; default pool.
+POOL_HP="${POOL##*://}"
+[[ -z "$POOL_HP" ]] && POOL_HP="stratum.minebtx.com:3333"
+
+# Worker-name base. Pool shows "<base>-gpuN" per card on the dashboard.
+WK="$worker"
+[[ -z "$WK" ]] && WK="$(hostname)"
+
+# Shared CUDA runtime (libcudart.so.12) ships next to the solver binary.
+export LD_LIBRARY_PATH="$SRC:${LD_LIBRARY_PATH:-}"
+# Run the vendored wrapper as a module — no pip install needed.
+export PYTHONPATH="$SRC:${PYTHONPATH:-}"
+# Pin the version: never let the wrapper/solver self-update on the rig.
+export DEXBTX_NO_WRAPPER_AUTOUPDATE=1
+export DEXBTX_NO_SOLVER_AUTOUPDATE=1
+# Stable GPU index <-> PCI bus mapping (matches stats busid order).
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+
+echo "> btx-dexbtx starting"
+echo "> Pool:    $POOL_HP"
+echo "> Wallet:  $TEMPLATE"
+echo "> GPUs:    ${GPULIST[*]}"
+echo "> Tuning:  gpu_inputs=$gpu_inputs threads=$threads workers=$workers batch=$batch prefetch=$prefetch"
+echo "> Extra:   $remainingAddition"
+
+date +%s > /tmp/btx-dexbtx.start
+: > "$LOG"
+
+pids=()
+for g in "${GPULIST[@]}"; do
+    [[ -z "$g" ]] && continue
+    glog="$LOGDIR/btx-dexbtx.gpu${g}.log"
+    : > "$glog"
+    echo "> launch GPU $g  -> worker ${WK}-gpu${g}  (log $glog)"
+    CUDA_VISIBLE_DEVICES="$g" python3 -m dexbtx_miner \
+        --pool "$POOL_HP" \
+        --address "$TEMPLATE" \
+        --worker "${WK}-gpu${g}" \
+        --gbt-solve "$BIN" \
+        --gpu-inputs "$gpu_inputs" \
+        --threads "$threads" \
+        --prepare-workers "$workers" \
+        --batch-size "$batch" \
+        --prefetch "$prefetch" \
+        --log-level INFO \
+        $remainingAddition >"$glog" 2>&1 &
+    pids+=($!)
+done
+
+if [[ ${#pids[@]} -eq 0 ]]; then
+    echo "> no GPUs to mine on — exiting"
+    exit 1
+fi
+
+# Mirror all per-GPU logs to the merged log + stdout for the os.dog live view.
+tail -n +1 -F "$LOGDIR"/btx-dexbtx.gpu*.log 2>/dev/null | tee -a "$LOG" &
+TAILPID=$!
+
+cleanup() {
+    trap - INT TERM EXIT
+    kill "${pids[@]}" "$TAILPID" 2>/dev/null
+    # python's default SIGTERM doesn't reap the solver daemon child — kill ours
+    # explicitly (scoped to this package's binary path, so other rigs/miners
+    # on the host are untouched).
+    pkill -f "$BIN" 2>/dev/null
+    exit 0
+}
+trap cleanup INT TERM EXIT
+
+wait "${pids[@]}"
+cleanup

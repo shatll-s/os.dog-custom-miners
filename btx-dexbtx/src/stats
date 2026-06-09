@@ -1,0 +1,112 @@
+#!/bin/bash
+####################################################################################
+###
+### btx-dexbtx GPU stats
+### os.dog integration: @osdog
+###
+####################################################################################
+#
+# os.dog stats output format:
+# {
+#   "miner":"btx-dexbtx","algo":"btx","ver":"0.4.3","online":"<epoch>",
+#   "total_hr":"<H/s>","total_share":"N","total_badshare":"N",
+#   "hr":[...per-GPU H/s...],"share":[...],"badshare":[...],
+#   "busid":{"0":"01",...}
+# }
+#
+# BTX/matmul has no honest local hashrate (upstream: tries_used under-counts,
+# nonce64 is a position). What IS honest is the solver's nonce-scan position,
+# which the wrapper advances by the real `nonce64_end` each ~5s slice. So per
+# GPU we report the nonce-scan RATE (Δnonce_start / Δt) as hr — a real, per-card
+# throughput signal that tracks GPU health and relative speed. Shares come from
+# the per-process "share OK/REJECTED … (a/r…=A/R…)" cumulative counters.
+#
+# Per-GPU logs: /var/log/osdog/miners/btx-dexbtx.gpu<N>.log (one per process).
+
+cd `dirname $0`
+
+PROFILE="$1"
+[[ -z "$PROFILE" || ! -f "$PROFILE" ]] && echo "Usage: $0 <profile.json>" && exit 1
+
+miner="btx-dexbtx"
+algo="btx"
+ver="0.4.3"
+LOGDIR="/var/log/osdog/miners"
+
+# Detect GPUs + bus IDs (rig order == CUDA_DEVICE_ORDER=PCI_BUS_ID == log index).
+gpu_count=0
+busid_json='{}'
+if command -v nvidia-smi >/dev/null 2>&1; then
+    mapfile -t bus_lines < <(nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader 2>/dev/null)
+    gpu_count=${#bus_lines[@]}
+    for ((i=0; i<gpu_count; i++)); do
+        busid_raw=$(echo "${bus_lines[$i]}" | cut -d':' -f2 | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+        [[ ${#busid_raw} -eq 1 ]] && busid_raw="0$busid_raw"
+        busid_json=$(jq -n --argjson data "$busid_json" --arg key "$i" --arg value "$busid_raw" \
+            '$data + { ($key): $value }')
+    done
+fi
+[[ "$gpu_count" -le 0 ]] && gpu_count=0
+
+# Per-GPU nonce-scan rate (H/s) from the honest nonce_start advance between slices.
+gpu_hr() {
+    local f="$1"
+    [[ ! -f "$f" ]] && { echo 0; return; }
+    tail -n 400 "$f" 2>/dev/null | sed -E 's/\x1B\[[0-9;]*[a-zA-Z]//g' | awk '
+        /solver: working/ && /nonce_start=/ {
+            ts=$1
+            if (match($0, /nonce_start=[0-9]+/)) {
+                n=substr($0, RSTART+12, RLENGTH-12)+0
+                split(ts, a, ":"); t=a[1]*3600+a[2]*60+a[3]
+                if (have) {
+                    dt=t-pt; if (dt<0) dt+=86400
+                    dn=n-pn
+                    if (dn>0 && dt>0) { sumn+=dn; sumt+=dt }   # skip per-block resets
+                }
+                pt=t; pn=n; have=1
+            }
+        }
+        END { if (sumt>0) printf "%.0f", sumn/sumt; else print 0 }
+    '
+}
+
+# Per-GPU cumulative shares from the last "(a/r…=A/R…)" counter line.
+gpu_shares() {  # prints "ACC REJ"
+    local f="$1"
+    [[ ! -f "$f" ]] && { echo "0 0"; return; }
+    local last nums acc rej
+    last=$(tail -n 400 "$f" 2>/dev/null | sed -E 's/\x1B\[[0-9;]*[a-zA-Z]//g' \
+           | grep -oE '\(a/r[^)]*\)' | tail -1)
+    if [[ -z "$last" ]]; then echo "0 0"; return; fi
+    nums=$(echo "$last" | grep -oE '[0-9]+')
+    acc=$(echo "$nums" | sed -n '1p'); rej=$(echo "$nums" | sed -n '2p')
+    [[ -z "$acc" ]] && acc=0; [[ -z "$rej" ]] && rej=0
+    echo "$acc $rej"
+}
+
+hr_json="["; share_json="["; badshare_json="["
+total_hr=0; total_share=0; total_badshare=0
+n=$gpu_count; [[ "$n" -le 0 ]] && n=1
+for ((i=0; i<n; i++)); do
+    f="$LOGDIR/btx-dexbtx.gpu${i}.log"
+    h=$(gpu_hr "$f")
+    read -r a r <<< "$(gpu_shares "$f")"
+    [[ $i -gt 0 ]] && { hr_json+=","; share_json+=","; badshare_json+=","; }
+    hr_json+="$h"; share_json+="$a"; badshare_json+="$r"
+    total_hr=$((total_hr + h)); total_share=$((total_share + a)); total_badshare=$((total_badshare + r))
+done
+hr_json+="]"; share_json+="]"; badshare_json+="]"
+
+miner_online=""
+[[ -f /tmp/btx-dexbtx.start ]] && miner_online=$(cat /tmp/btx-dexbtx.start)
+
+miner_json=$(jq -n \
+    --arg miner "$miner" --arg algo "$algo" --arg ver "$ver" \
+    --arg total_hr "$total_hr" --arg total_share "$total_share" --arg total_badshare "$total_badshare" \
+    --argjson hr "$hr_json" --argjson share "$share_json" --argjson badshare "$badshare_json" \
+    --argjson busid "$busid_json" \
+    '{$miner, $algo, $ver, $total_hr, $total_share, $total_badshare, $hr, $share, $badshare, $busid}')
+
+[[ -n "$miner_online" ]] && miner_json=$(jq ". + {\"online\": \"$miner_online\"}" <<< "$miner_json")
+
+echo "$miner_json" | jq -c '.'
